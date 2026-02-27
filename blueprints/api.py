@@ -54,24 +54,6 @@ def create_master():
     db.session.commit()
     return jsonify({"status": "ok"})
 
-@bp_api.route('/delete_master', methods=['POST'])
-@login_required
-def delete_master():
-    data = request.json
-    layout_id = data.get('master_id')
-    
-    item = LayoutDFC.query.get(layout_id)
-    if not item:
-        return jsonify({"status": "error", "message": "Item não encontrado"})
-        
-    filhos = LayoutDFC.query.filter_by(grupo_pai=item.grupo_calculo).count()
-    if filhos > 0:
-        return jsonify({"status": "error", "message": "Categoria master não está vazia. Exclua as subcategorias primeiro."})
-        
-    db.session.delete(item)
-    db.session.commit()
-    return jsonify({"status": "ok"})
-
 @bp_api.route('/create_header', methods=['POST'])
 @login_required
 def create_header():
@@ -80,17 +62,14 @@ def create_header():
     texto = data.get('texto')
     grupo_calculo = generate_slug(texto)
     
-    # Encontra a posição exata para inserir o novo header logo após os itens existentes do Master
     items_do_master = LayoutDFC.query.filter_by(grupo_pai=master_grupo).all()
     
     if items_do_master:
         after_ordem = max([item.ordem for item in items_do_master])
     else:
-        # Se não tiver filhos ainda, pega a ordem do próprio master
         master = LayoutDFC.query.filter_by(grupo_calculo=master_grupo).first()
         after_ordem = master.ordem if master else 0
 
-    # Empurra as linhas de baixo para abrir espaço
     db.session.query(LayoutDFC).filter(LayoutDFC.ordem > after_ordem).update(
         {LayoutDFC.ordem: LayoutDFC.ordem + 1}, synchronize_session=False
     )
@@ -118,17 +97,22 @@ def create_conta():
     if not header:
         return jsonify({"status": "error", "message": "Header não encontrado"})
     
+    # 1. VALIDAÇÃO DE CONTA DUPLICADA
     cat = Categoria.query.filter_by(codigo=codigo).first()
-    if not cat:
-        cat = Categoria(codigo=codigo, nome=nome, tipo="operacional")
-        db.session.add(cat)
-        db.session.flush()
+    if cat:
+        return jsonify({
+            "status": "error", 
+            "message": f"O código '{codigo}' já está em uso pela conta '{cat.nome}'. Use outro código (ex: {codigo}-B)."
+        })
     
-    # LÓGICA DE ORDENAÇÃO CORRETA: Encontrar a posição da última conta desse header
+    # Se não existe, cria normalmente
+    cat = Categoria(codigo=codigo, nome=nome, tipo="operacional")
+    db.session.add(cat)
+    db.session.flush()
+    
     items_do_grupo = LayoutDFC.query.filter_by(grupo_calculo=header.grupo_calculo).all()
     after_ordem = max([item.ordem for item in items_do_grupo]) if items_do_grupo else header.ordem
     
-    # Empurramos o resto do DFC para baixo abrindo espaço exato para a conta
     db.session.query(LayoutDFC).filter(LayoutDFC.ordem > after_ordem).update(
         {LayoutDFC.ordem: LayoutDFC.ordem + 1}, synchronize_session=False
     )
@@ -143,6 +127,24 @@ def create_conta():
     db.session.add(item)
     db.session.commit()
     return jsonify({"status": "ok", "cat_id": cat.id, "layout_id": item.id})
+
+@bp_api.route('/delete_master', methods=['POST'])
+@login_required
+def delete_master():
+    data = request.json
+    layout_id = data.get('master_id')
+    
+    item = LayoutDFC.query.get(layout_id)
+    if not item:
+        return jsonify({"status": "error", "message": "Item não encontrado"})
+        
+    filhos = LayoutDFC.query.filter_by(grupo_pai=item.grupo_calculo).count()
+    if filhos > 0:
+        return jsonify({"status": "error", "message": "Categoria master não está vazia. Exclua as subcategorias primeiro."})
+        
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"status": "ok"})
 
 @bp_api.route('/delete_header', methods=['POST'])
 @login_required
@@ -172,9 +174,15 @@ def delete_conta():
     if not item:
         return jsonify({"status": "error", "message": "Item não encontrado"})
 
-    tem_lanc = Lancamento.query.filter_by(categoria_id=item.categoria_id).count()
-    if tem_lanc > 0:
-        return jsonify({"status": "error", "message": "Conta possui lançamentos financeiros. Exclusão bloqueada."})
+    # 2. VÁLVULA DE ESCAPE PARA CONTAS DUPLICADAS NO LAYOUT
+    usos_no_layout = LayoutDFC.query.filter_by(categoria_id=item.categoria_id).count()
+
+    # Se a conta estiver no layout APENAS UMA VEZ, não deixa excluir se tiver lançamentos.
+    # Se estiver mais de uma vez (duplicada pelo bug), deixa excluir a linha livremente!
+    if usos_no_layout <= 1:
+        tem_lanc = Lancamento.query.filter_by(categoria_id=item.categoria_id).count()
+        if tem_lanc > 0:
+            return jsonify({"status": "error", "message": "Conta possui lançamentos financeiros. Exclusão bloqueada."})
         
     db.session.delete(item)
     db.session.commit()
