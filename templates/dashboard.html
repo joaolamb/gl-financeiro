@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+    <!-- FILTROS -->
+    <div class="filters-bar">
+        <div class="filter-group">
+            <label>Ano de Análise</label>
+            <select id="ano1" class="form-select">
+                {% for y in range(2024, 2031) %}
+                <option value="{{ y }}" {{ 'selected' if y == ano else '' }}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Comparar ano a ano</label>
+            <select id="ano2" class="form-select">
+                <option value="">Sem comparação</option>
+                {% for y in range(2024, 2031) %}
+                <option value="{{ y }}" {{ 'selected' if y == ano-1 else '' }}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button class="primary-btn" onclick="updateDashboard()" style="height: 42px;">
+            <i class="fa-solid fa-bolt"></i> Processar Dados
+        </button>
+    </div>
+
+    <!-- KPI CARDS -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Saldo Final de Caixa (Ano até a Data)</div>
+            <div class="kpi-value" id="kpiSaldoFinal">R$ 0,00</div>
+            <div class="kpi-subtitle" id="kpiMesesFechados">0 meses concluídos</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Geração Líquida de Caixa</div>
+            <div class="kpi-value" id="kpiGeracaoLiquida">R$ 0,00</div>
+            <div class="kpi-subtitle">Resultado operacional líquido</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Gasto Mensal</div>
+            <div class="kpi-value text-danger" id="kpiBurnRate">R$ 0,00</div>
+            <div class="kpi-subtitle">Despesas + Custos / Mês</div>
+        </div>
+        <div class="kpi-card highlight">
+            <div class="kpi-title">Fôlego Financeiro</div>
+            <div class="kpi-value" id="kpiRunway">0.0 Meses</div>
+            <div class="kpi-subtitle">Tempo de caixa restante</div>
+        </div>
+    </div>
+
+    <div class="dash-grid-v2">
+        <div class="dash-card full-width">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-water"></i> Ponte de Fluxo de Caixa (Ano até a Data)</h3>
+            </div>
+            <div class="chart-container" style="height: 350px;">
+                <canvas id="chartWaterfall"></canvas>
+            </div>
+        </div>
+
+        <div class="dash-card">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-layer-group"></i> Entradas vs Saídas Mensais</h3>
+            </div>
+            <div class="chart-container" style="height: 300px;">
+                <canvas id="chartStacked"></canvas>
+            </div>
+        </div>
+
+        
+        <div class="dash-card">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-scale-balanced"></i> Comparativo da Variação ano a ano (EBITDA)</h3>
+            </div>
+            <div class="chart-container" style="height: 300px;">
+                <canvas id="chartYoY"></canvas>
+            </div>
+        </div>
+
+        
+        <div class="dash-card full-width">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-chart-line"></i> Curva de Pareto (80/20) - Top Movimentações Absolutas</h3>
+            </div>
+            <div class="chart-container" style="height: 350px;">
+                <canvas id="chartPareto"></canvas>
+            </div>
+        </div>
+        <div class="dash-card full-width">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-magnifying-glass-chart"></i> Análise Vertical & Explorador de Contas</h3>
+                <p style="font-size: 12px; color: var(--muted); margin-top: 5px;">Clique nos grupos para expandir e ver os detalhes. % = Representatividade em relação à Receita Líquida.</p>
+            </div>
+            <div class="explorer-container" id="explorerTree">
+                <div style="padding: 20px; text-align: center; color: var(--muted);">Processando Árvore DFC...</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<!-- TOASTS CONTAINER NO DASHBOARD -->
+<div id="toastHost" class="toast-host"></div>
+{% endblock %}

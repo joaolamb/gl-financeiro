@@ -1,0 +1,13 @@
+manual.txt
+/__pycache__
+venv/
+env/
+.venv/
+instance/
+.env
+.flaskenv
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

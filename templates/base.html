@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>DFC System Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% if current_user.is_authenticated %}
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="{{ url_for('static', filename='img/logo_gl.png') }}" alt="Logo da Empresa" style="max-height: 40px; width: auto;">
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('geral.home') }}" class="{{ 'active' if request.endpoint == 'geral.home' }}">
+                <i class="fa-solid fa-house"></i> Início
+            </a>
+            <a href="{{ url_for('geral.index', ano=ano if ano else 2026) }}" class="{{ 'active' if request.endpoint == 'geral.index' }}">
+                <i class="fa-solid fa-table"></i> Planilha DFC
+            </a>
+            <a href="{{ url_for('geral.dashboard', ano=ano if ano else 2026) }}" class="{{ 'active' if request.endpoint == 'geral.dashboard' }}">
+                <i class="fa-solid fa-chart-line"></i> Dashboard
+            </a>
+            <a href="{{ url_for('categorias.listar') }}" class="{{ 'active' if request.endpoint == 'categorias.listar' }}">
+                <i class="fa-solid fa-list"></i> Plano de Contas
+            </a>
+        </div>
+        <div class="nav-user">
+            <div class="user-info">
+                <span class="user-name">{{ current_user.username }}</span>
+                <span class="user-role">{{ 'Admin' if current_user.is_admin else 'Usuário' }}</span>
+            </div>
+            <a href="{{ url_for('auth.logout') }}" class="btn-logout" title="Sair">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </a>
+        </div>
+    </nav>
+    {% endif %}
+
+    {% if ano %}
+    <div class="year-bar">
+        <h1>Visualizando Exercício: <span class="highlight">{{ ano }}</span></h1>
+        <div class="year-selector">
+            <label>Alterar Ano:</label>
+            <select onchange="window.location.href='?ano='+this.value">
+                {% for y in range(2024, 2031) %}
+                <option value="{{ y }}" {{ 'selected' if y == ano else '' }}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-container">
+                {% for category, message in messages %}
+                    <div class="toast toast-{{ category }}">
+                        {{ message }}
+                        <span onclick="this.parentElement.remove()" style="cursor:pointer; float:right; font-weight:bold;">&times;</span>
+                    </div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Scripts Globais -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

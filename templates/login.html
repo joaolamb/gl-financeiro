@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Financeiro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { background: #f0f2f5; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 400px; }
+        .login-title { margin-bottom: 24px; text-align: center; }
+        .login-title img { max-height: 60px; width: auto; object-fit: contain; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; color: #344054; }
+        .form-group input { width: 100%; padding: 10px; border: 1px solid #d0d5dd; border-radius: 8px; font-size: 15px; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        .btn { width: 100%; padding: 12px; background: #0f2f4a; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+        .btn:hover { background: #0b233a; }
+        .alert { padding: 12px; background: #fee2e2; color: #991b1b; border-radius: 6px; margin-bottom: 20px; font-size: 14px; text-align: center; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-title">
+            <!-- LOGO DA EMPRESA AQUI -->
+            <img src="{{ url_for('static', filename='img/logo_gl.png') }}" alt="Logo da Empresa">
+        </div>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label>Usuário</label>
+                <input type="text" name="username" placeholder="Digite seu usuário" required autofocus>
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" name="password" placeholder="Digite sua senha" required>
+            </div>
+            <button type="submit" class="btn">Entrar</button>
+        </form>
+    </div>
+</body>
+</html>

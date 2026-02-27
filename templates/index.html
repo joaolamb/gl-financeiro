@@ -1,0 +1,773 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+{% macro render_row(item, valor_existente) %}
+<tr class="row-conta hidden-row"
+    data-pai="{{ item.grupo_pai }}"
+    data-layout-id="{{ item.id }}"
+    data-cat-id="{{ item.categoria.id }}"
+    data-cat-codigo="{{ item.categoria.codigo|e }}"
+    data-cat-nome="{{ item.categoria.nome|e }}"
+    data-header-grupo="{{ item.grupo_calculo|e }}"
+    data-master-grupo="{{ item.grupo_pai|e }}">
+
+    <td class="td-code" style="width: 70px; text-align: center; background: #f9f9f9;">
+        <span class="cell-value">{{ item.categoria.codigo }}</span>
+    </td>
+
+    <td class="td-name" style="padding-left: 40px;">
+        <div class="cell-flex">
+            <span class="cell-title">{{ item.categoria.nome }}</span>
+
+            <div class="row-actions">
+                <button class="icon-btn danger edit-only" title="Excluir conta"
+                        onclick="event.stopPropagation(); requestDeleteConta({{ item.id }})">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </td>
+
+    {% for mes in range(1, 13) %}
+    <td>
+        <input type="text"
+               inputmode="decimal"
+               class="cell-input money-mask"
+               data-cat-id="{{ item.categoria.id }}"
+               data-mes="{{ mes }}"
+               data-group="{{ item.grupo_calculo }}"
+               data-master="{{ item.grupo_pai }}"
+               data-raw-value="{{ valor_existente.get(mes, '') }}"
+               value=""
+               onfocus="this.select()"
+               oninput="handleInput(this)"
+               onblur="saveData(this)">
+    </td>
+    {% endfor %}
+
+    <td class="text-right cell-total-ano" style="background-color:#f0f0f0; font-weight:600;">0,00</td>
+</tr>
+{% endmacro %}
+
+
+<div class="table-wrapper">
+
+    <div class="table-topbar">
+        <div class="table-title-wrap">
+            <div class="table-title">DFC {{ ano }}</div>
+
+            <button id="btnToggleEdit" class="ghost-btn" type="button" onclick="toggleEditMode()">
+                <i class="fa-solid fa-pen"></i>
+                Editar Estrutura
+            </button>
+        </div>
+
+        <button class="primary-btn edit-only" onclick="openCreateMaster()">
+            <i class="fa-solid fa-plus"></i>
+            Nova Categoria Master
+        </button>
+    </div>
+
+    <table class="finance-table">
+        <thead>
+            <tr>
+                <th style="width: 70px;">Cód.</th>
+                <th style="min-width: 360px;">Descrição da Conta</th>
+                {% for mes in range(1, 13) %}
+                <th style="min-width: 100px;">{{ mes }}/{{ ano }}</th>
+                {% endfor %}
+                <th style="min-width: 120px;">Total Ano</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for item in layout %}
+
+                {% if item.tipo_linha == 'master' %}
+                    <tr class="row-master"
+                        id="master-{{ item.grupo_calculo }}"
+                        data-layout-id="{{ item.id }}"
+                        onclick="toggleAccordion('{{ item.grupo_calculo }}')">
+
+                        <td colspan="2" style="padding-left: 10px;">
+                            <div class="cell-flex">
+                                <div class="cell-left">
+                                    <i class="fa-solid fa-chevron-right icon-chevron" id="icon-{{ item.grupo_calculo }}"></i>
+                                    <span class="cell-title">{{ item.texto }}</span>
+                                </div>
+
+                                <div class="row-actions">
+                                    <button class="icon-btn inverse edit-only"
+                                            title="Adicionar subcategoria"
+                                            onclick="event.stopPropagation(); openCreateHeader('{{ item.grupo_calculo }}')">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+
+                                    <button class="icon-btn inverse edit-only"
+                                            title="Editar master"
+                                            onclick="event.stopPropagation(); openEditText({{ item.id }}, 'master', '{{ item.texto|e }}')">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+
+                                    <button class="icon-btn inverse edit-only"
+                                            style="color: #fca5a5; border-color: rgba(252, 165, 165, 0.3);"
+                                            title="Excluir master"
+                                            onclick="event.stopPropagation(); requestDeleteMaster({{ item.id }})">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right" data-master-mes="{{ mes }}">0,00</td>
+                        {% endfor %}
+                        <td class="text-right" data-master-ano="true">0,00</td>
+                    </tr>
+
+                {% elif item.tipo_linha == 'header' %}
+                    <tr class="row-header hidden-row"
+                        data-pai="{{ item.grupo_pai }}"
+                        data-layout-id="{{ item.id }}"
+                        data-header-grupo="{{ item.grupo_calculo }}"
+                        id="header-{{ item.grupo_calculo }}">
+
+                        <td colspan="2" style="padding-left: 30px;">
+                            <div class="cell-flex">
+                                <div class="cell-left">
+                                    <span class="cell-title">{{ item.texto }}</span>
+                                </div>
+
+                                <div class="row-actions">
+                                    <button class="icon-btn edit-only"
+                                            title="Adicionar conta aqui"
+                                            onclick="event.stopPropagation(); openInlineCreateConta(this)">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+
+                                    <button class="icon-btn edit-only"
+                                            title="Editar subcategoria"
+                                            onclick="event.stopPropagation(); openEditText({{ item.id }}, 'header', '{{ item.texto|e }}')">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+
+                                    <button class="icon-btn danger edit-only"
+                                            title="Excluir subcategoria"
+                                            onclick="event.stopPropagation(); requestDeleteHeader({{ item.id }})">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right" data-subtotal-mes="{{ mes }}">0,00</td>
+                        {% endfor %}
+                        <td class="text-right" data-subtotal-ano="true">0,00</td>
+                    </tr>
+
+                {% elif item.tipo_linha == 'conta' %}
+                    {{ render_row(item, dados.get(item.categoria_id, {})) }}
+
+                {% elif item.tipo_linha == 'total' %}
+                    <tr class="row-total-calc" id="total-{{ item.id_total }}">
+                        <td colspan="2" class="cell-total-title">
+                            {{ item.texto }}
+                        </td>
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right" data-mes="{{ mes }}">0,00</td>
+                        {% endfor %}
+                        <td class="text-right" data-ano="true">0,00</td>
+                    </tr>
+                {% endif %}
+
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+<!-- MODAL -->
+<div id="modalOverlay" class="modal-overlay hidden" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" id="modalTitle">Título</div>
+            <button class="icon-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+        <div class="modal-footer">
+            <button class="ghost-btn" onclick="closeModal()">Cancelar</button>
+            <button class="primary-btn" id="modalConfirmBtn" onclick="confirmModal()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- CONFIRM (central) -->
+<div id="confirmOverlay" class="confirm-overlay hidden" onclick="confirmCancel()">
+  <div class="confirm-dialog" onclick="event.stopPropagation()">
+      <div class="confirm-left">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="confirmText">Confirmar ação?</span>
+      </div>
+
+      <div class="confirm-actions">
+          <button class="ghost-btn small" onclick="confirmCancel()">Cancelar</button>
+          <button class="primary-btn small danger" onclick="confirmOk()">Confirmar</button>
+      </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div id="toastHost" class="toast-host"></div>
+
+
+<script>
+    function toast(message, type = "info") {
+        const host = document.getElementById("toastHost");
+        const el = document.createElement("div");
+        el.className = `toast toast-${type}`;
+        el.innerHTML = `
+            <div class="toast-msg">${escapeHtml(message)}</div>
+            <button class="toast-x" aria-label="Fechar" onclick="this.parentElement.remove()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        `;
+        host.appendChild(el);
+
+        setTimeout(() => {
+            if (el && el.parentElement) el.remove();
+        }, 3200);
+    }
+
+    const confirmState = { action: null };
+
+    function confirmShow(text, actionFn) {
+        confirmState.action = actionFn;
+        document.getElementById("confirmText").innerText = text || "Confirmar ação?";
+        document.getElementById("confirmOverlay").classList.remove("hidden");
+    }
+
+    function confirmCancel() {
+        confirmState.action = null;
+        document.getElementById("confirmOverlay").classList.add("hidden");
+    }
+
+    async function confirmOk() {
+        const fn = confirmState.action;
+        confirmCancel();
+        if (typeof fn === "function") await fn();
+    }
+
+    function escapeHtml(str) {
+        return String(str || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+    }
+
+    async function apiPost(url, data) {
+        const r = await fetch(url, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        });
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            return { status: "error", message: json.message || "Erro na requisição." };
+        }
+        return json;
+    }
+
+    // ==========================================
+    // MOTOR DE ATUALIZAÇÃO SPA (SEM RELOAD)
+    // ==========================================
+    async function refreshTableUI() {
+        try {
+            // Vai buscar o HTML atualizado do servidor silenciosamente
+            const url = window.location.href;
+            const res = await fetch(url);
+            const htmlText = await res.text();
+            
+            // Analisa a nova estrutura recebida
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlText, 'text/html');
+            const newTbody = doc.querySelector('.finance-table tbody');
+            
+            if (newTbody) {
+                // Troca apenas o corpo da tabela no ecrã pela versão nova
+                document.querySelector('.finance-table tbody').innerHTML = newTbody.innerHTML;
+                
+                // Re-inicializa todos os inputs e valores puxados da base de dados
+                document.querySelectorAll('.money-mask').forEach(input => {
+                    let raw = input.dataset.rawValue;
+                    if (raw && raw !== 'None') {
+                        input.value = parseFloat(raw).toFixed(2).replace('.', '');
+                        mascaraMoeda(input);
+                    }
+                });
+                
+                // Restaura os Acordeões para ficarem abertos nos locais exatos onde estavam
+                restoreAccordions();
+                
+                // Recalcula totais com base na nova estrutura
+                recalculateTotals();
+            }
+        } catch (error) {
+            console.error("Falha ao atualizar a tabela sem reload:", error);
+            location.reload(); // Fallback caso ocorra algum erro severo
+        }
+    }
+
+    const ACC_KEY = "dfc_open_masters_v1";
+
+    function getOpenMasters(){
+        try { return JSON.parse(localStorage.getItem(ACC_KEY) || "[]"); }
+        catch { return []; }
+    }
+    function setOpenMasters(arr){
+        localStorage.setItem(ACC_KEY, JSON.stringify(arr));
+    }
+    function markMasterState(masterGroup, isOpen){
+        const open = new Set(getOpenMasters());
+        if (isOpen) open.add(masterGroup);
+        else open.delete(masterGroup);
+        setOpenMasters(Array.from(open));
+    }
+
+    function restoreAccordions(){
+        const open = new Set(getOpenMasters());
+        open.forEach(group => {
+            const children = document.querySelectorAll(`tr[data-pai="${group}"]`);
+            if (!children.length) return;
+
+            children.forEach(r => r.classList.remove("hidden-row"));
+            const icon = document.getElementById(`icon-${group}`);
+            if (icon) icon.classList.add("open");
+        });
+    }
+
+    function toggleAccordion(masterGroup) {
+        const children = document.querySelectorAll(`tr[data-pai="${masterGroup}"]`);
+        const icon = document.getElementById(`icon-${masterGroup}`);
+
+        let isOpening = true;
+        if (children.length > 0 && !children[0].classList.contains('hidden-row')) isOpening = false;
+
+        children.forEach(row => row.classList.toggle('hidden-row', !isOpening));
+        if (icon) icon.classList.toggle('open', isOpening);
+
+        markMasterState(masterGroup, isOpening);
+    }
+
+    let debounceTimer;
+    const gruposRed = [
+        'deducoes','desp_var','custos','folha','outras_pessoal','estrutura',
+        'veiculos','terceiros','consumo','informatica','marketing','comunicacao',
+        'outras_desp','bancarias','fin_saida','impostos','socios','capex','emp_saida'
+    ];
+    // Grupos que devem ser SUBTRAÍDOS do Master porque o Master reflete um saldo líquido
+    const gruposSubtraemMaster = ['deducoes', 'rec_desp', 'fin_saida', 'emp_saida'];
+
+    function handleInput(input) {
+        mascaraMoeda(input);
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { recalculateTotals(); }, 250);
+    }
+
+    function mascaraMoeda(input) {
+        let value = input.value.replace(/\D/g, "");
+        if (value === "") { input.value = ""; return; }
+        value = (parseFloat(value) / 100).toFixed(2) + "";
+        value = value.replace(".", ",");
+        value = value.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,");
+        value = value.replace(/(\d)(\d{3}),/g, "$1.$2,");
+        input.value = value;
+    }
+
+    function parseBRL(str) {
+        if (!str) return 0;
+        return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+
+    function formatBRL(num) {
+        return num.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function recalculateTotals() {
+        const subgrupos = {};
+        const masters = {};
+
+        const inputs = document.getElementsByClassName('money-mask');
+        for (let inp of inputs) {
+            let val = parseBRL(inp.value);
+            let mes = parseInt(inp.dataset.mes);
+            let grp = inp.dataset.group;
+
+            if (!subgrupos[grp]) subgrupos[grp] = new Float64Array(13);
+            subgrupos[grp][mes] += val;
+
+            if (gruposRed.includes(grp) && val > 0) inp.classList.add('text-red');
+            else inp.classList.remove('text-red');
+        }
+
+        document.querySelectorAll('.row-conta').forEach(row => {
+            let totalRow = 0;
+            let inputsRow = row.getElementsByTagName('input');
+            let isRed = false;
+
+            for (let inp of inputsRow) {
+                totalRow += parseBRL(inp.value);
+                if (inp.classList.contains('text-red')) isRed = true;
+            }
+
+            let cellTotal = row.lastElementChild;
+            cellTotal.innerText = formatBRL(totalRow);
+
+            if (isRed && totalRow > 0) cellTotal.classList.add('text-red');
+            else cellTotal.classList.remove('text-red');
+        });
+
+        document.querySelectorAll('.row-master').forEach(row => {
+            let id = row.id.replace('master-', '');
+            if (!masters[id]) masters[id] = new Float64Array(13);
+        });
+
+        for (const grp in subgrupos) {
+            let headerRow = document.getElementById(`header-${grp}`);
+            if (headerRow) {
+                let masterGrp = headerRow.dataset.pai;
+                if (!masters[masterGrp]) masters[masterGrp] = new Float64Array(13);
+
+                let somaHeader = 0;
+                let vals = subgrupos[grp];
+                let isRedGrp = gruposRed.includes(grp);
+
+                for (let m = 1; m <= 12; m++) {
+                    let val = vals[m];
+                    let cell = headerRow.querySelector(`[data-subtotal-mes="${m}"]`);
+                    if (cell) {
+                        cell.innerText = formatBRL(val);
+                        cell.classList.toggle('text-red', isRedGrp && val > 0);
+                    }
+                    somaHeader += val;
+
+                    if (gruposSubtraemMaster.includes(grp)) masters[masterGrp][m] -= val;
+                    else masters[masterGrp][m] += val;
+                }
+
+                let cellTotal = headerRow.querySelector(`[data-subtotal-ano="true"]`);
+                if (cellTotal) {
+                    cellTotal.innerText = formatBRL(somaHeader);
+                    cellTotal.classList.toggle('text-red', isRedGrp && somaHeader > 0);
+                }
+            }
+        }
+
+        for (const mGrp in masters) {
+            let masterRow = document.getElementById(`master-${mGrp}`);
+            if (masterRow) {
+                let vals = masters[mGrp];
+                let somaMaster = 0;
+
+                for (let m = 1; m <= 12; m++) {
+                    let val = vals[m];
+                    let cell = masterRow.querySelector(`[data-master-mes="${m}"]`);
+                    if (cell) cell.innerText = formatBRL(val);
+                    somaMaster += val;
+                }
+                masterRow.querySelector(`[data-master-ano="true"]`).innerText = formatBRL(somaMaster);
+            }
+        }
+
+        const GetM = (k, m) => masters[k] ? masters[k][m] : 0;
+
+        for (let m = 1; m <= 12; m++) {
+            let mcb = GetM('grp_recebimentos', m) - GetM('grp_custos_var', m);
+            updateTotal('mcb', m, mcb);
+
+            let ebitda = mcb - GetM('grp_desp_op', m);
+            updateTotal('ebitda', m, ebitda);
+
+            let finLiq = GetM('grp_financeiro', m);
+            let lair = ebitda + finLiq;
+            updateTotal('lair', m, lair);
+
+            let lucro = lair - GetM('grp_impostos', m);
+            updateTotal('lucro_liquido', m, lucro);
+
+            let gBruta = lucro - GetM('grp_socios', m);
+            updateTotal('geracao_bruta', m, gBruta);
+
+            let gLiq = gBruta - GetM('grp_capex', m);
+            updateTotal('geracao_liquida', m, gLiq);
+
+            let empLiq = GetM('grp_emprestimos', m);
+            let final = gLiq + empLiq;
+            updateTotal('saldo_final', m, final);
+        }
+    }
+
+    function updateTotal(id, mes, valor) {
+        let el = document.querySelector(`#total-${id} [data-mes="${mes}"]`);
+        if (el) {
+            el.innerText = formatBRL(valor);
+            el.classList.toggle('text-red', valor < 0);
+        }
+    }
+
+    function saveData(input) {
+        let val = parseBRL(input.value);
+        let data = { categoria_id: input.dataset.catId, mes: input.dataset.mes, valor: val };
+
+        fetch("{{ url_for('api.atualizar') }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        }).catch(() => toast("Falha ao salvar.", "error"));
+    }
+
+    const modal = { action: null };
+
+    function showModal(title, bodyHtml, confirmLabel, actionFn) {
+        modal.action = actionFn;
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalBody').innerHTML = bodyHtml;
+        document.getElementById('modalConfirmBtn').innerText = confirmLabel || 'Salvar';
+        document.getElementById('modalOverlay').classList.remove('hidden');
+
+        setTimeout(() => {
+            const first = document.querySelector('#modalBody input, #modalBody select');
+            if (first) first.focus();
+        }, 30);
+    }
+
+    function closeModal(ev) {
+        if (ev && ev.target && ev.target.id !== 'modalOverlay') return;
+        document.getElementById('modalOverlay').classList.add('hidden');
+        modal.action = null;
+    }
+
+    function confirmModal() {
+        if (typeof modal.action === 'function') modal.action();
+    }
+
+    // =====================================
+    // SUBSTITUIÇÃO DE RELOADS POR SPA (UI)
+    // =====================================
+
+    function openCreateMaster() {
+        showModal(
+            "Nova Categoria Master",
+            `
+            <div class="form-grid">
+                <label>Texto</label>
+                <input id="m_texto" type="text" placeholder="Ex: 1. RECEBIMENTOS (Receita Líquida)" />
+            </div>
+            `,
+            "Criar",
+            async () => {
+                const texto = document.getElementById('m_texto').value.trim();
+                const res = await apiPost("{{ url_for('api.create_master') }}", { texto });
+                if (res.status !== "ok") return toast(res.message || "Erro ao criar master.", "error");
+                
+                toast("Master criada com sucesso.", "success");
+                closeModal();
+                await refreshTableUI();
+            }
+        );
+    }
+
+    function openCreateHeader(masterGrupo) {
+        showModal(
+            "Nova Subcategoria (Header)",
+            `
+            <div class="form-grid">
+                <label>Texto</label>
+                <input id="h_texto" type="text" placeholder="Ex: Receitas Diretas" />
+            </div>
+            `,
+            "Criar",
+            async () => {
+                const texto = document.getElementById('h_texto').value.trim();
+                const res = await apiPost("{{ url_for('api.create_header') }}", {
+                    master_grupo: masterGrupo, texto
+                });
+                if (res.status !== "ok") return toast(res.message || "Erro ao criar header.", "error");
+                
+                toast("Subcategoria criada.", "success");
+                closeModal();
+                
+                // Expande o Master automaticamente para revelar a nova subcategoria
+                markMasterState(masterGrupo, true);
+                
+                await refreshTableUI();
+            }
+        );
+    }
+
+    function openEditText(layoutId, tipo, textoAtual) {
+        showModal(
+            `Editar ${tipo === 'master' ? 'Master' : 'Header'}`,
+            `
+            <div class="form-grid">
+                <label>Texto</label>
+                <input id="t_texto" type="text" value="${escapeHtml(textoAtual)}" />
+            </div>
+            `,
+            "Salvar",
+            async () => {
+                const texto = document.getElementById('t_texto').value.trim();
+                const res = await apiPost("{{ url_for('api.update_text') }}", { layout_id: layoutId, texto });
+                if (res.status !== "ok") return toast(res.message || "Erro ao editar.", "error");
+                
+                toast("Alteração salva.", "success");
+                closeModal();
+                await refreshTableUI();
+            }
+        );
+    }
+
+    function requestDeleteMaster(layoutId) {
+        confirmShow("Excluir esta categoria master? (precisa estar vazia)", async () => {
+            const res = await apiPost("{{ url_for('api.delete_master') }}", { master_id: layoutId });
+            if (res.status !== "ok") return toast(res.message || "Erro ao excluir categoria master.", "error");
+
+            toast("Categoria master excluída.", "success");
+            await refreshTableUI();
+        });
+    }
+
+    function requestDeleteHeader(layoutId) {
+        confirmShow("Excluir esta subcategoria? (precisa estar vazia)", async () => {
+            const res = await apiPost("{{ url_for('api.delete_header') }}", { header_id: layoutId });
+            if (res.status !== "ok") return toast(res.message || "Erro ao excluir subcategoria.", "error");
+
+            toast("Subcategoria excluída.", "success");
+            await refreshTableUI();
+        });
+    }
+
+    function requestDeleteConta(layoutId) {
+        confirmShow("Excluir esta conta? (não pode ter lançamentos)", async () => {
+            const res = await apiPost("{{ url_for('api.delete_conta') }}", { layout_id: layoutId });
+            if (res.status !== "ok") return toast(res.message || "Erro ao excluir conta.", "error");
+
+            toast("Conta excluída.", "success");
+            await refreshTableUI();
+        });
+    }
+
+    function closeAnyInlineEditor() {
+        document.querySelectorAll('tr.inline-editor-row').forEach(tr => tr.remove());
+    }
+
+    function openInlineCreateConta(btnEl) {
+        closeAnyInlineEditor();
+
+        const headerRow = btnEl.closest('tr.row-header');
+        if (!headerRow) return;
+
+        const headerLayoutId = headerRow.getAttribute('data-layout-id');
+
+        const tr = document.createElement('tr');
+        tr.className = 'inline-editor-row';
+
+        tr.innerHTML = `
+            <td class="td-code">
+                <input class="inline-input full-input" id="in_codigo" type="text" placeholder="Código" style="width: 100%" />
+            </td>
+
+            <td class="td-name">
+                <div style="display: flex; gap: 8px; align-items: center; padding: 4px;">
+                    <input class="inline-input full-input" id="in_nome" type="text" placeholder="Descrição da conta" style="flex: 1;" />
+                    <button class="primary-btn small" title="Salvar (Enter)" onclick="saveInlineCreateConta(${headerLayoutId})">
+                        <i class="fa-solid fa-check"></i> Salvar
+                    </button>
+                    <button class="ghost-btn small" title="Cancelar (Esc)" onclick="closeAnyInlineEditor()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </td>
+
+            <td class="inline-filler" colspan="13" style="background: #f1f5f9;"></td>
+        `;
+
+        headerRow.insertAdjacentElement('afterend', tr);
+        setTimeout(() => document.getElementById('in_codigo')?.focus(), 0);
+
+        tr.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeAnyInlineEditor();
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveInlineCreateConta(headerLayoutId);
+                return;
+            }
+        });
+    }
+
+    async function saveInlineCreateConta(headerLayoutId) {
+        const codigo = (document.getElementById('in_codigo')?.value || '').trim();
+        const nome = (document.getElementById('in_nome')?.value || '').trim();
+
+        if (!codigo || !nome) return toast("Informe código e descrição.", "error");
+
+        const res = await apiPost("{{ url_for('api.create_conta') }}", {
+            header_layout_id: headerLayoutId,
+            codigo,
+            nome
+        });
+
+        if (res.status !== "ok") return toast(res.message || "Erro ao criar conta.", "error");
+
+        toast("Conta criada e posicionada com sucesso!", "success");
+        closeAnyInlineEditor();
+        
+        // Atualiza a tabela SPA
+        await refreshTableUI();
+    }
+
+    let EDIT_MODE = false;
+
+    function setEditMode(isEdit) {
+        EDIT_MODE = !!isEdit;
+        document.body.classList.toggle("is-edit-mode", EDIT_MODE);
+
+        const btn = document.getElementById("btnToggleEdit");
+        if (btn) {
+            btn.innerHTML = EDIT_MODE
+                ? `<i class="fa-solid fa-check"></i> Concluir Edição`
+                : `<i class="fa-solid fa-pen"></i> Editar Estrutura`;
+        }
+
+        localStorage.setItem("dfc_edit_mode_only_buttons", EDIT_MODE ? "1" : "0");
+    }
+
+    function toggleEditMode() {
+        setEditMode(!EDIT_MODE);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedEdit = localStorage.getItem("dfc_edit_mode_only_buttons") === "1";
+        setEditMode(savedEdit);
+
+        document.querySelectorAll('.money-mask').forEach(input => {
+            let raw = input.dataset.rawValue;
+            if (raw && raw !== 'None') {
+                input.value = parseFloat(raw).toFixed(2).replace('.', '');
+                mascaraMoeda(input);
+            }
+        });
+
+        restoreAccordions();
+        recalculateTotals();
+    });
+</script>
+
+{% endblock %}

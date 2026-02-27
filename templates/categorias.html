@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .form-card {
+        background: white;
+        padding: 20px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 20px;
+        max-width: 600px;
+        border-radius: 8px;
+    }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: 500; font-size: 13px; }
+    .form-group input, .form-group select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-family: 'Inter', sans-serif;
+    }
+    .btn {
+        background-color: #0f2f4a;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: 0.2s;
+    }
+    .btn:hover { background-color: #123a5a; }
+    .table-list { width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+    .table-list th, .table-list td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 13px; }
+    .table-list th { background: #f8fafc; font-weight: 600; }
+</style>
+
+<div style="padding: 20px;">
+    <h2>Plano de Contas</h2>
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">Atenção: remover uma conta exclui o histórico de lançamentos. Pense bem antes de remover.</p>
+    
+    <div class="form-card">
+        <form method="POST">
+            <div class="form-group">
+                <label>Código da Conta</label>
+                <input type="text" name="codigo" placeholder="Ex: 5001" required>
+            </div>
+            <div class="form-group">
+                <label>Nome da Conta</label>
+                <input type="text" name="nome" placeholder="Ex: Nova Despesa" required>
+            </div>
+            <div class="form-group">
+                <label>Tipo (Referência)</label>
+                <select name="tipo">
+                    <option value="sistema">Geral</option>
+                    <option value="receita">Receita</option>
+                    <option value="despesa">Despesa</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">Salvar Conta</button>
+        </form>
+    </div>
+
+    <table class="table-list">
+        <thead>
+            <tr>
+                <th width="100">Código</th>
+                <th>Nome</th>
+                <th width="100">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cat in categorias %}
+            <tr>
+                <td>{{ cat.codigo }}</td>
+                <td>{{ cat.nome }}</td>
+                <td>
+                    <!-- Removido o alert/confirm nativo, substituído pela função promptDelete -->
+                    <a href="javascript:void(0)" onclick="promptDelete('{{ url_for('categorias.deletar', id=cat.id) }}')" style="color: #b02228; text-decoration: none; font-size: 12px; font-weight: 600;">
+                        <i class="fa-solid fa-trash"></i> Excluir
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal Personalizado para Confirmação sem Alert do Navegador -->
+<div id="confirmOverlay" class="confirm-overlay hidden" onclick="confirmCancel()">
+  <div class="confirm-dialog" onclick="event.stopPropagation()">
+      <div class="confirm-left">
+          <i class="fa-solid fa-triangle-exclamation" style="color: #f59e0b; font-size: 18px;"></i>
+          <span id="confirmText">Tem certeza? Isso pode quebrar a DFC se a conta tiver dados.</span>
+      </div>
+
+      <div class="confirm-actions">
+          <button class="ghost-btn small" onclick="confirmCancel()">Cancelar</button>
+          <button class="primary-btn small danger" onclick="confirmOk()">Confirmar Exclusão</button>
+      </div>
+  </div>
+</div>
+
+<script>
+    let deleteUrl = "";
+    
+    function promptDelete(url) {
+        deleteUrl = url;
+        document.getElementById("confirmOverlay").classList.remove("hidden");
+    }
+    
+    function confirmCancel() {
+        document.getElementById("confirmOverlay").classList.add("hidden");
+    }
+    
+    function confirmOk() {
+        window.location.href = deleteUrl;
+    }
+</script>
+{% endblock %}

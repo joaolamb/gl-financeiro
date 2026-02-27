@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="home-container">
+    <div class="welcome-hero">
+        <h2>Bem-vindo, {{ current_user.username }}!</h2>
+        <p>Selecione uma ação abaixo para visualizar e gerenciar as demonstrações financeiras.</p>
+    </div>
+
+    <div class="cards-grid">
+        <a href="{{ url_for('geral.index', ano=ano_atual) }}" class="nav-card">
+            <div class="icon"><i class="fa-solid fa-table"></i></div>
+            <h3>DFC {{ ano_atual }}</h3>
+            <p>Acessar a planilha detalhada do ano corrente.</p>
+        </a>
+
+        <a href="{{ url_for('geral.dashboard', ano=ano_atual) }}" class="nav-card">
+            <div class="icon"><i class="fa-solid fa-chart-line"></i></div>
+            <h3>Dashboard</h3>
+            <p>Visualizar gráficos e indicadores chave.</p>
+        </a>
+        
+        {% if current_user.is_admin %}
+        <div class="nav-card" onclick="openUserModal()">
+            <div class="icon"><i class="fa-solid fa-users-gear"></i></div>
+            <h3>Gerenciar Usuários</h3>
+            <p>Criar novos acessos ao sistema.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="userModal" class="modal-overlay hidden">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Novo Usuário</div>
+            <button class="icon-btn" onclick="document.getElementById('userModal').classList.add('hidden')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <label>Username</label>
+                <input id="new_user" type="text" class="full-input">
+                <label>Senha</label>
+                <input id="new_pass" type="password" class="full-input">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="ghost-btn" onclick="document.getElementById('userModal').classList.add('hidden')">Cancelar</button>
+            <button class="primary-btn" onclick="createUser()">Criar Usuário</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openUserModal() { 
+        document.getElementById('userModal').classList.remove('hidden'); 
+    }
+    
+    async function createUser() {
+        const u = document.getElementById('new_user').value;
+        const p = document.getElementById('new_pass').value;
+        
+        if(!u || !p) {
+            toast('Preencha os campos', 'error');
+            return;
+        }
+        
+        const r = await fetch("{{ url_for('auth.create_user') }}", {
+            method: 'POST', 
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({username: u, password: p})
+        });
+        
+        const d = await r.json();
+        
+        if(d.status === 'ok') {
+            toast(d.message, 'success');
+            document.getElementById('userModal').classList.add('hidden');
+            document.getElementById('new_user').value = '';
+            document.getElementById('new_pass').value = '';
+        } else {
+            toast(d.message, 'error');
+        }
+    }
+</script>
+{% endblock %}
