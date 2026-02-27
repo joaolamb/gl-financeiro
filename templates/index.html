@@ -2,10 +2,44 @@
 
 {% block content %}
 
-<!-- ADICIONADO: Classe de cor vermelha para as despesas e valores negativos -->
+<!-- Classes de cor e efeitos de destaque Excel (Auditoria de Fórmulas) -->
 <style>
     .text-red {
         color: #d92d20 !important;
+    }
+    .cursor-pointer-hover {
+        cursor: cell; /* Cursor estilo Excel */
+        transition: background-color 0.2s;
+    }
+    .cursor-pointer-hover:hover {
+        background-color: #e2e8f0;
+        border-radius: 4px;
+    }
+    
+    /* EXCEL FORMULA HIGHLIGHTS */
+    .formula-target {
+        box-shadow: inset 0 0 0 2px #10b981 !important; /* Verde Esmeralda */
+        background-color: #ecfdf5 !important;
+        color: #047857 !important;
+        font-weight: 800 !important;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    .formula-sum {
+        box-shadow: inset 0 0 0 2px #3b82f6 !important; /* Azul (Somando) */
+        background-color: #eff6ff !important;
+        color: #1d4ed8 !important;
+        font-weight: 700 !important;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    .formula-sub {
+        box-shadow: inset 0 0 0 2px #ef4444 !important; /* Vermelho (Subtraindo) */
+        background-color: #fef2f2 !important;
+        color: #b91c1c !important;
+        font-weight: 700 !important;
+        border-radius: 4px;
+        transition: all 0.2s ease;
     }
 </style>
 
@@ -53,7 +87,9 @@
     </td>
     {% endfor %}
 
-    <td class="text-right cell-total-ano" style="background-color:#f0f0f0; font-weight:600;">0,00</td>
+    <td class="text-right cell-total-ano cursor-pointer-hover" 
+        style="background-color:#f0f0f0; font-weight:600;"
+        onclick="toggleHighlight('conta', '{{ item.categoria.id }}', 'ano', event)" title="Ver contas somadas">0,00</td>
 </tr>
 {% endmacro %}
 
@@ -89,7 +125,36 @@
         </thead>
 
         <tbody>
+            {% set ns = namespace(rol_rendered=false, lucro_rendered=false) %}
             {% for item in layout %}
+            
+                <!-- INJEÇÃO DA ROL DEPOIS DA RECUPERAÇÃO DE DESPESAS (Antes dos Custos) -->
+                {% if not ns.rol_rendered and ((item.tipo_linha == 'header' and item.grupo_calculo == 'custos') or (item.tipo_linha == 'total' and item.id_total == 'mcb')) %}
+                    <tr class="row-total-calc" id="total-rol" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                        <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
+                            (=) ROL - Receita Operacional Líquida
+                        </td>
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'rol', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da ROL">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-ano="true" onclick="toggleHighlight('total', 'rol', 'ano', event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da ROL">0,00</td>
+                    </tr>
+                    {% set ns.rol_rendered = true %}
+                {% endif %}
+
+                <!-- INJEÇÃO DO LUCRO LÍQUIDO DEPOIS DOS IMPOSTOS (Antes dos Sócios) -->
+                {% if not ns.lucro_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_socios' %}
+                    <tr class="row-total-calc" id="total-lucro_liquido" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                        <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
+                            (=) Lucro Líquido
+                        </td>
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'lucro_liquido', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem do cálculo">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-ano="true" onclick="toggleHighlight('total', 'lucro_liquido', 'ano', event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem do cálculo">0,00</td>
+                    </tr>
+                    {% set ns.lucro_rendered = true %}
+                {% endif %}
 
                 {% if item.tipo_linha == 'master' %}
                     <tr class="row-master"
@@ -128,9 +193,9 @@
                         </td>
 
                         {% for mes in range(1, 13) %}
-                            <td class="text-right" data-master-mes="{{ mes }}">0,00</td>
+                            <td class="text-right cursor-pointer-hover" data-master-mes="{{ mes }}" onclick="toggleHighlight('master', '{{ item.grupo_calculo }}', {{ mes }}, event)" title="Ver origem da soma">0,00</td>
                         {% endfor %}
-                        <td class="text-right" data-master-ano="true">0,00</td>
+                        <td class="text-right cursor-pointer-hover" data-master-ano="true" onclick="toggleHighlight('master', '{{ item.grupo_calculo }}', 'ano', event)" title="Ver origem da soma">0,00</td>
                     </tr>
 
                 {% elif item.tipo_linha == 'header' %}
@@ -143,7 +208,13 @@
                         <td colspan="2" style="padding-left: 30px;">
                             <div class="cell-flex">
                                 <div class="cell-left">
-                                    <span class="cell-title">{{ item.texto }}</span>
+                                    <span class="cell-title">
+                                        {% if item.texto == 'Pagamentos (Amortização + Juros)' %}
+                                            Empréstimos/Parcelamentos Impostos
+                                        {% else %}
+                                            {{ item.texto }}
+                                        {% endif %}
+                                    </span>
                                 </div>
 
                                 <div class="row-actions">
@@ -155,7 +226,7 @@
 
                                     <button class="icon-btn edit-only"
                                             title="Editar subcategoria"
-                                            onclick="event.stopPropagation(); openEditText({{ item.id }}, 'header', '{{ item.texto|e }}')">
+                                            onclick="event.stopPropagation(); openEditText({{ item.id }}, 'header', '{% if item.texto == 'Pagamentos (Amortização + Juros)' %}Empréstimos/Parcelamentos Impostos{% else %}{{ item.texto|e }}{% endif %}')">
                                         <i class="fa-solid fa-pen"></i>
                                     </button>
 
@@ -169,9 +240,9 @@
                         </td>
 
                         {% for mes in range(1, 13) %}
-                            <td class="text-right" data-subtotal-mes="{{ mes }}">0,00</td>
+                            <td class="text-right cursor-pointer-hover" data-subtotal-mes="{{ mes }}" onclick="toggleHighlight('header', '{{ item.grupo_calculo }}', {{ mes }}, event)" title="Ver contas somadas">0,00</td>
                         {% endfor %}
-                        <td class="text-right" data-subtotal-ano="true">0,00</td>
+                        <td class="text-right cursor-pointer-hover" data-subtotal-ano="true" onclick="toggleHighlight('header', '{{ item.grupo_calculo }}', 'ano', event)" title="Ver contas somadas">0,00</td>
                     </tr>
 
                 {% elif item.tipo_linha == 'conta' %}
@@ -183,9 +254,9 @@
                             {{ item.texto }}
                         </td>
                         {% for mes in range(1, 13) %}
-                            <td class="text-right" data-mes="{{ mes }}">0,00</td>
+                            <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', '{{ item.id_total }}', {{ mes }}, event)" title="Ver origem do cálculo">0,00</td>
                         {% endfor %}
-                        <td class="text-right" data-ano="true">0,00</td>
+                        <td class="text-right cursor-pointer-hover" data-ano="true" onclick="toggleHighlight('total', '{{ item.id_total }}', 'ano', event)" title="Ver origem do cálculo">0,00</td>
                     </tr>
                 {% endif %}
 
@@ -289,6 +360,122 @@
     }
 
     // ==========================================
+    // AUDITORIA DE FÓRMULAS TIPO EXCEL
+    // ==========================================
+    let currentHighlight = { type: null, id: null, mes: null };
+
+    // Fórmulas da DFC mapeando quem soma e quem subtrai para cada Total
+    const DFC_FORMULAS = {
+        'rol': { sum: ['master-grp_recebimentos', 'header-rec_desp'], sub: ['header-desp_var'] },
+        'mcb': { sum: ['master-grp_recebimentos'], sub: ['master-grp_custos_var'] },
+        'ebitda': { sum: ['total-mcb'], sub: ['master-grp_desp_op'] },
+        'lair': { sum: ['total-ebitda', 'master-grp_financeiro'], sub: [] },
+        'lucro_liquido': { sum: ['total-lair'], sub: ['master-grp_impostos'] },
+        'geracao_bruta': { sum: ['total-lucro_liquido'], sub: ['master-grp_socios'] },
+        'geracao_liquida': { sum: ['total-geracao_bruta'], sub: ['master-grp_capex'] },
+        'saldo_final': { sum: ['total-geracao_liquida', 'master-grp_emprestimos'], sub: [] }
+    };
+
+    function toggleHighlight(type, id, mes, event) {
+        event.stopPropagation(); // Evita expandir o accordion acidentalmente
+        
+        const isSame = (currentHighlight.type === type && currentHighlight.id === id && currentHighlight.mes === mes);
+
+        // Limpa os destaques anteriores
+        document.querySelectorAll('.formula-target, .formula-sum, .formula-sub').forEach(el => {
+            el.classList.remove('formula-target', 'formula-sum', 'formula-sub');
+        });
+
+        if (isSame) {
+            currentHighlight = { type: null, id: null, mes: null };
+            return;
+        }
+
+        currentHighlight = { type, id, mes };
+
+        // 1. Destaca o "Alvo" clicado de verde
+        const targetCell = getCellNode(type, id, mes);
+        if (targetCell) targetCell.classList.add('formula-target');
+
+        // 2. Destaca as origens com base na regra de negócio
+        if (type === 'total') {
+            const formula = DFC_FORMULAS[id];
+            if (formula) {
+                formula.sum.forEach(prec => highlightPrecedent(prec, mes, 'formula-sum'));
+                formula.sub.forEach(prec => highlightPrecedent(prec, mes, 'formula-sub'));
+            }
+        } else if (type === 'master') {
+            // Se clicar num Master, mostra todas as subcategorias que o compõem
+            document.querySelectorAll(`.row-header[data-pai="${id}"]`).forEach(row => {
+                const headerId = row.id.replace('header-', '');
+                const isSub = gruposSubtraemMaster.includes(headerId);
+                highlightPrecedent(`header-${headerId}`, mes, isSub ? 'formula-sub' : 'formula-sum');
+            });
+        } else if (type === 'header') {
+            // Se clicar numa subcategoria, mostra as contas dentro dela
+            if (mes === 'ano') {
+                document.querySelectorAll(`.row-conta[data-header-grupo="${id}"] .cell-total-ano`).forEach(cell => {
+                    cell.classList.add('formula-sum');
+                });
+            } else {
+                document.querySelectorAll(`.cell-input[data-group="${id}"][data-mes="${mes}"]`).forEach(inp => {
+                    inp.classList.add('formula-sum');
+                });
+            }
+            // Auto-expandir a categoria pai se estiver fechada
+            const rowHeader = document.getElementById(`header-${id}`);
+            if (rowHeader) {
+                const mId = rowHeader.getAttribute('data-pai');
+                const icon = document.getElementById(`icon-${mId}`);
+                if (icon && !icon.classList.contains('open')) toggleAccordion(mId);
+            }
+        } else if (type === 'conta') {
+            // Se clicar no total anual de uma conta, mostra os 12 meses dela
+            if (mes === 'ano') {
+                document.querySelectorAll(`.cell-input[data-cat-id="${id}"]`).forEach(inp => {
+                    inp.classList.add('formula-sum');
+                });
+            }
+        }
+    }
+
+    function getCellNode(type, id, mes) {
+        let selector = '';
+        if (type === 'total') {
+            selector = mes === 'ano' ? `#total-${id} [data-ano="true"]` : `#total-${id} [data-mes="${mes}"]`;
+        } else if (type === 'master') {
+            selector = mes === 'ano' ? `#master-${id} [data-master-ano="true"]` : `#master-${id} [data-master-mes="${mes}"]`;
+        } else if (type === 'header') {
+            selector = mes === 'ano' ? `#header-${id} [data-subtotal-ano="true"]` : `#header-${id} [data-subtotal-mes="${mes}"]`;
+        } else if (type === 'conta') {
+            selector = `.row-conta[data-cat-id="${id}"] .cell-total-ano`;
+        }
+        return document.querySelector(selector);
+    }
+
+    function highlightPrecedent(precId, mes, className) {
+        const parts = precId.split('-');
+        const type = parts[0]; // master, header ou total
+        const id = parts.slice(1).join('-');
+        
+        const cell = getCellNode(type, id, mes);
+        
+        if (cell) {
+            cell.classList.add(className);
+            
+            // Abre o accordion do Master se um Header dele estiver sendo destacado
+            if (type === 'header') {
+                const row = document.getElementById(`header-${id}`);
+                if (row) {
+                    const mId = row.getAttribute('data-pai');
+                    const icon = document.getElementById(`icon-${mId}`);
+                    if (icon && !icon.classList.contains('open')) toggleAccordion(mId);
+                }
+            }
+        }
+    }
+
+    // ==========================================
     // MOTOR DE ATUALIZAÇÃO SPA (SEM RELOAD)
     // ==========================================
     async function refreshTableUI() {
@@ -312,6 +499,7 @@
                     }
                 });
                 
+                currentHighlight = { type: null, id: null, mes: null }; // Limpa as caixas se atualizar a tabela
                 restoreAccordions();
                 recalculateTotals();
             }
@@ -483,30 +671,60 @@
         }
 
         const GetM = (k, m) => masters[k] ? masters[k][m] : 0;
+        
+        let sumsAnuais = {
+            rol: 0, mcb: 0, ebitda: 0, lair: 0, lucro_liquido: 0,
+            geracao_bruta: 0, geracao_liquida: 0, saldo_final: 0
+        };
 
         for (let m = 1; m <= 12; m++) {
+            
+            // CÁLCULO DA ROL: Recebimentos - Despesas Variáveis + Recuperação de Despesas
+            let rec = GetM('grp_recebimentos', m);
+            let despVar = subgrupos['desp_var'] ? subgrupos['desp_var'][m] : 0;
+            let recDesp = subgrupos['rec_desp'] ? subgrupos['rec_desp'][m] : 0;
+            let rol = rec - despVar + recDesp;
+            
+            updateTotal('rol', m, rol);
+            sumsAnuais.rol += rol;
+
             let mcb = GetM('grp_recebimentos', m) - GetM('grp_custos_var', m);
             updateTotal('mcb', m, mcb);
+            sumsAnuais.mcb += mcb;
 
             let ebitda = mcb - GetM('grp_desp_op', m);
             updateTotal('ebitda', m, ebitda);
+            sumsAnuais.ebitda += ebitda;
 
             let finLiq = GetM('grp_financeiro', m);
             let lair = ebitda + finLiq;
             updateTotal('lair', m, lair);
+            sumsAnuais.lair += lair;
 
             let lucro = lair - GetM('grp_impostos', m);
             updateTotal('lucro_liquido', m, lucro);
+            sumsAnuais.lucro_liquido += lucro;
 
             let gBruta = lucro - GetM('grp_socios', m);
             updateTotal('geracao_bruta', m, gBruta);
+            sumsAnuais.geracao_bruta += gBruta;
 
             let gLiq = gBruta - GetM('grp_capex', m);
             updateTotal('geracao_liquida', m, gLiq);
+            sumsAnuais.geracao_liquida += gLiq;
 
             let empLiq = GetM('grp_emprestimos', m);
             let final = gLiq + empLiq;
             updateTotal('saldo_final', m, final);
+            sumsAnuais.saldo_final += final;
+        }
+        
+        for (const [key, value] of Object.entries(sumsAnuais)) {
+            let el = document.querySelector(`#total-${key} [data-ano="true"]`);
+            if (el) {
+                el.innerText = formatBRL(value);
+                el.classList.toggle('text-red', value < 0);
+            }
         }
     }
 
