@@ -2,6 +2,13 @@
 
 {% block content %}
 
+<!-- ADICIONADO: Classe de cor vermelha para as despesas e valores negativos -->
+<style>
+    .text-red {
+        color: #d92d20 !important;
+    }
+</style>
+
 {% macro render_row(item, valor_existente) %}
 <tr class="row-conta hidden-row"
     data-pai="{{ item.grupo_pai }}"
