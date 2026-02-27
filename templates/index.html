@@ -8,7 +8,7 @@
         color: #d92d20 !important;
     }
     .cursor-pointer-hover {
-        cursor: cell; /* Cursor estilo Excel */
+        cursor: cell;
         transition: background-color 0.2s;
     }
     .cursor-pointer-hover:hover {
@@ -18,7 +18,7 @@
     
     /* EXCEL FORMULA HIGHLIGHTS */
     .formula-target {
-        box-shadow: inset 0 0 0 2px #10b981 !important; /* Verde Esmeralda */
+        box-shadow: inset 0 0 0 2px #10b981 !important;
         background-color: #ecfdf5 !important;
         color: #047857 !important;
         font-weight: 800 !important;
@@ -26,7 +26,7 @@
         transition: all 0.2s ease;
     }
     .formula-sum {
-        box-shadow: inset 0 0 0 2px #3b82f6 !important; /* Azul (Somando) */
+        box-shadow: inset 0 0 0 2px #3b82f6 !important;
         background-color: #eff6ff !important;
         color: #1d4ed8 !important;
         font-weight: 700 !important;
@@ -34,7 +34,7 @@
         transition: all 0.2s ease;
     }
     .formula-sub {
-        box-shadow: inset 0 0 0 2px #ef4444 !important; /* Vermelho (Subtraindo) */
+        box-shadow: inset 0 0 0 2px #ef4444 !important;
         background-color: #fef2f2 !important;
         color: #b91c1c !important;
         font-weight: 700 !important;
@@ -43,7 +43,8 @@
     }
 </style>
 
-{% macro render_row(item, valor_existente) %}
+<!-- Adicionado o parametro ano_atual ao macro para garantir que o JS pega sempre o ano correto -->
+{% macro render_row(item, valor_existente, ano_atual) %}
 <tr class="row-conta hidden-row"
     data-pai="{{ item.grupo_pai }}"
     data-layout-id="{{ item.id }}"
@@ -77,6 +78,7 @@
                class="cell-input money-mask"
                data-cat-id="{{ item.categoria.id }}"
                data-mes="{{ mes }}"
+               data-ano="{{ ano_atual }}"
                data-group="{{ item.grupo_calculo }}"
                data-master="{{ item.grupo_pai }}"
                data-raw-value="{{ valor_existente.get(mes, '') }}"
@@ -128,7 +130,6 @@
             {% set ns = namespace(rol_rendered=false, lucro_rendered=false) %}
             {% for item in layout %}
             
-                <!-- INJEÇÃO DA ROL DEPOIS DA RECUPERAÇÃO DE DESPESAS (Antes dos Custos) -->
                 {% if not ns.rol_rendered and ((item.tipo_linha == 'header' and item.grupo_calculo == 'custos') or (item.tipo_linha == 'total' and item.id_total == 'mcb')) %}
                     <tr class="row-total-calc" id="total-rol" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
@@ -142,7 +143,6 @@
                     {% set ns.rol_rendered = true %}
                 {% endif %}
 
-                <!-- INJEÇÃO DO LUCRO LÍQUIDO DEPOIS DOS IMPOSTOS (Antes dos Sócios) -->
                 {% if not ns.lucro_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_socios' %}
                     <tr class="row-total-calc" id="total-lucro_liquido" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
@@ -246,7 +246,8 @@
                     </tr>
 
                 {% elif item.tipo_linha == 'conta' %}
-                    {{ render_row(item, dados.get(item.categoria_id, {})) }}
+                    <!-- Passando a variavel ano para dentro do macro -->
+                    {{ render_row(item, dados.get(item.categoria_id, {}), ano) }}
 
                 {% elif item.tipo_linha == 'total' %}
                     <tr class="row-total-calc" id="total-{{ item.id_total }}">
@@ -364,7 +365,6 @@
     // ==========================================
     let currentHighlight = { type: null, id: null, mes: null };
 
-    // Fórmulas da DFC mapeando quem soma e quem subtrai para cada Total
     const DFC_FORMULAS = {
         'rol': { sum: ['master-grp_recebimentos', 'header-rec_desp'], sub: ['header-desp_var'] },
         'mcb': { sum: ['master-grp_recebimentos'], sub: ['master-grp_custos_var'] },
@@ -377,11 +377,10 @@
     };
 
     function toggleHighlight(type, id, mes, event) {
-        event.stopPropagation(); // Evita expandir o accordion acidentalmente
+        event.stopPropagation(); 
         
         const isSame = (currentHighlight.type === type && currentHighlight.id === id && currentHighlight.mes === mes);
 
-        // Limpa os destaques anteriores
         document.querySelectorAll('.formula-target, .formula-sum, .formula-sub').forEach(el => {
             el.classList.remove('formula-target', 'formula-sum', 'formula-sub');
         });
@@ -393,11 +392,9 @@
 
         currentHighlight = { type, id, mes };
 
-        // 1. Destaca o "Alvo" clicado de verde
         const targetCell = getCellNode(type, id, mes);
         if (targetCell) targetCell.classList.add('formula-target');
 
-        // 2. Destaca as origens com base na regra de negócio
         if (type === 'total') {
             const formula = DFC_FORMULAS[id];
             if (formula) {
@@ -405,14 +402,12 @@
                 formula.sub.forEach(prec => highlightPrecedent(prec, mes, 'formula-sub'));
             }
         } else if (type === 'master') {
-            // Se clicar num Master, mostra todas as subcategorias que o compõem
             document.querySelectorAll(`.row-header[data-pai="${id}"]`).forEach(row => {
                 const headerId = row.id.replace('header-', '');
                 const isSub = gruposSubtraemMaster.includes(headerId);
                 highlightPrecedent(`header-${headerId}`, mes, isSub ? 'formula-sub' : 'formula-sum');
             });
         } else if (type === 'header') {
-            // Se clicar numa subcategoria, mostra as contas dentro dela
             if (mes === 'ano') {
                 document.querySelectorAll(`.row-conta[data-header-grupo="${id}"] .cell-total-ano`).forEach(cell => {
                     cell.classList.add('formula-sum');
@@ -422,7 +417,6 @@
                     inp.classList.add('formula-sum');
                 });
             }
-            // Auto-expandir a categoria pai se estiver fechada
             const rowHeader = document.getElementById(`header-${id}`);
             if (rowHeader) {
                 const mId = rowHeader.getAttribute('data-pai');
@@ -430,7 +424,6 @@
                 if (icon && !icon.classList.contains('open')) toggleAccordion(mId);
             }
         } else if (type === 'conta') {
-            // Se clicar no total anual de uma conta, mostra os 12 meses dela
             if (mes === 'ano') {
                 document.querySelectorAll(`.cell-input[data-cat-id="${id}"]`).forEach(inp => {
                     inp.classList.add('formula-sum');
@@ -455,7 +448,7 @@
 
     function highlightPrecedent(precId, mes, className) {
         const parts = precId.split('-');
-        const type = parts[0]; // master, header ou total
+        const type = parts[0]; 
         const id = parts.slice(1).join('-');
         
         const cell = getCellNode(type, id, mes);
@@ -463,7 +456,6 @@
         if (cell) {
             cell.classList.add(className);
             
-            // Abre o accordion do Master se um Header dele estiver sendo destacado
             if (type === 'header') {
                 const row = document.getElementById(`header-${id}`);
                 if (row) {
@@ -480,8 +472,11 @@
     // ==========================================
     async function refreshTableUI() {
         try {
-            const url = window.location.href;
-            const res = await fetch(url);
+            // CACHE BUSTING: Evita que o navegador busque a tabela vazia que tinha no cache!
+            const url = new URL(window.location.href, window.location.origin);
+            url.searchParams.set('_t', Date.now());
+            
+            const res = await fetch(url.toString(), { cache: 'no-store' });
             const htmlText = await res.text();
             
             const parser = new DOMParser();
@@ -499,7 +494,7 @@
                     }
                 });
                 
-                currentHighlight = { type: null, id: null, mes: null }; // Limpa as caixas se atualizar a tabela
+                currentHighlight = { type: null, id: null, mes: null };
                 restoreAccordions();
                 recalculateTotals();
             }
@@ -556,7 +551,6 @@
         'veiculos','terceiros','consumo','informatica','marketing','comunicacao',
         'outras_desp','bancarias','fin_saida','impostos','socios','capex','emp_saida'
     ];
-    // Grupos que devem ser SUBTRAÍDOS do Master porque o Master reflete um saldo líquido
     const gruposSubtraemMaster = ['deducoes', 'rec_desp', 'fin_saida', 'emp_saida'];
 
     function handleInput(input) {
@@ -679,7 +673,6 @@
 
         for (let m = 1; m <= 12; m++) {
             
-            // CÁLCULO DA ROL: Recebimentos - Despesas Variáveis + Recuperação de Despesas
             let rec = GetM('grp_recebimentos', m);
             let despVar = subgrupos['desp_var'] ? subgrupos['desp_var'][m] : 0;
             let recDesp = subgrupos['rec_desp'] ? subgrupos['rec_desp'][m] : 0;
@@ -738,7 +731,12 @@
 
     function saveData(input) {
         let val = parseBRL(input.value);
-        let data = { categoria_id: input.dataset.catId, mes: input.dataset.mes, valor: val };
+        let data = { 
+            categoria_id: input.dataset.catId, 
+            mes: input.dataset.mes, 
+            ano: input.dataset.ano, // Fix: Agora envia o ano correto sempre
+            valor: val 
+        };
 
         fetch("{{ url_for('api.atualizar') }}", {
             method: "POST",
