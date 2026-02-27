@@ -286,21 +286,17 @@
     // ==========================================
     async function refreshTableUI() {
         try {
-            // Vai buscar o HTML atualizado do servidor silenciosamente
             const url = window.location.href;
             const res = await fetch(url);
             const htmlText = await res.text();
             
-            // Analisa a nova estrutura recebida
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlText, 'text/html');
             const newTbody = doc.querySelector('.finance-table tbody');
             
             if (newTbody) {
-                // Troca apenas o corpo da tabela no ecrã pela versão nova
                 document.querySelector('.finance-table tbody').innerHTML = newTbody.innerHTML;
                 
-                // Re-inicializa todos os inputs e valores puxados da base de dados
                 document.querySelectorAll('.money-mask').forEach(input => {
                     let raw = input.dataset.rawValue;
                     if (raw && raw !== 'None') {
@@ -309,15 +305,12 @@
                     }
                 });
                 
-                // Restaura os Acordeões para ficarem abertos nos locais exatos onde estavam
                 restoreAccordions();
-                
-                // Recalcula totais com base na nova estrutura
                 recalculateTotals();
             }
         } catch (error) {
             console.error("Falha ao atualizar a tabela sem reload:", error);
-            location.reload(); // Fallback caso ocorra algum erro severo
+            location.reload(); 
         }
     }
 
@@ -529,6 +522,61 @@
         }).catch(() => toast("Falha ao salvar.", "error"));
     }
 
+    // =====================================
+    // NAVEGAÇÃO TIPO EXCEL (SETAS E ENTER)
+    // =====================================
+    document.addEventListener('keydown', function(e) {
+        if (!e.target.classList.contains('cell-input')) return;
+
+        const currentInput = e.target;
+        
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+            
+            const currentRow = currentInput.closest('tr.row-conta');
+            const visibleRows = Array.from(document.querySelectorAll('tr.row-conta:not(.hidden-row)'));
+            const rowIndex = visibleRows.indexOf(currentRow);
+            
+            const rowInputs = Array.from(currentRow.querySelectorAll('.cell-input'));
+            const colIndex = rowInputs.indexOf(currentInput);
+
+            let targetInput = null;
+
+            if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) {
+                if (rowIndex < visibleRows.length - 1) {
+                    targetInput = visibleRows[rowIndex + 1].querySelectorAll('.cell-input')[colIndex];
+                    e.preventDefault();
+                }
+            } else if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) {
+                if (rowIndex > 0) {
+                    targetInput = visibleRows[rowIndex - 1].querySelectorAll('.cell-input')[colIndex];
+                    e.preventDefault();
+                }
+            } else if (e.key === 'ArrowRight') {
+                if (currentInput.selectionStart === currentInput.value.length || (currentInput.selectionStart === 0 && currentInput.selectionEnd === currentInput.value.length)) {
+                    if (colIndex < rowInputs.length - 1) {
+                        targetInput = rowInputs[colIndex + 1];
+                        e.preventDefault();
+                    }
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (currentInput.selectionEnd === 0 || (currentInput.selectionStart === 0 && currentInput.selectionEnd === currentInput.value.length)) {
+                    if (colIndex > 0) {
+                        targetInput = rowInputs[colIndex - 1];
+                        e.preventDefault();
+                    }
+                }
+            }
+
+            if (targetInput) {
+                targetInput.focus();
+            }
+        }
+    });
+
+    // =====================================
+    // MODAIS E EDIÇÃO
+    // =====================================
+
     const modal = { action: null };
 
     function showModal(title, bodyHtml, confirmLabel, actionFn) {
@@ -553,10 +601,6 @@
     function confirmModal() {
         if (typeof modal.action === 'function') modal.action();
     }
-
-    // =====================================
-    // SUBSTITUIÇÃO DE RELOADS POR SPA (UI)
-    // =====================================
 
     function openCreateMaster() {
         showModal(
@@ -600,7 +644,6 @@
                 toast("Subcategoria criada.", "success");
                 closeModal();
                 
-                // Expande o Master automaticamente para revelar a nova subcategoria
                 markMasterState(masterGrupo, true);
                 
                 await refreshTableUI();
@@ -729,7 +772,6 @@
         toast("Conta criada e posicionada com sucesso!", "success");
         closeAnyInlineEditor();
         
-        // Atualiza a tabela SPA
         await refreshTableUI();
     }
 
