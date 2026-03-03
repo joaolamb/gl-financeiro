@@ -1,9 +1,6 @@
-// dashboard.js - Motor Analítico Dinâmico para DFC
+const regrasSubtracaoHeader = ['rec_desp', 'fin_saida', 'emp_saida'];
 
-// Regras de negócio (ID's do setup do DB original)
-const regrasSubtracaoHeader = ['deducoes', 'rec_desp', 'fin_saida', 'emp_saida'];
 
-// Instâncias ativas do Chart.js
 let charts = {};
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,7 +11,6 @@ async function updateDashboard() {
     const ano1 = document.getElementById('ano1').value;
     const ano2 = document.getElementById('ano2').value;
     
-    // Mostra loading nos cards
     document.getElementById('explorerTree').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--muted);">Processando Árvore DFC...</div>';
 
     const params = new URLSearchParams();
@@ -29,11 +25,9 @@ async function updateDashboard() {
         return;
     }
 
-    // Processamento Inteligente de Dados
     const procAno1 = processDataTree(data.layout, data.data_ano1);
     const procAno2 = ano2 ? processDataTree(data.layout, data.data_ano2) : null;
 
-    // Renderizar componentes
     renderKPIs(procAno1, data.data_ano1);
     renderWaterfall(procAno1);
     renderStackedBars(procAno1);
@@ -42,20 +36,16 @@ async function updateDashboard() {
     renderExplorerTree(procAno1);
 }
 
-// ==========================================
-// 1. MOTOR DE PROCESSAMENTO (DATA ENGINE)
-// ==========================================
+
 function processDataTree(layout, lancamentos) {
-    // Inicializa a árvore
     let tree = {
-        masters: {}, // { "grp_recebimentos": { texto, total, meses[], headers: {} } }
-        contasMap: {} // mapeia cat_id -> ponteiro para a conta na arvore
+        masters: {}, 
+        contasMap: {} 
     };
 
     let activeMaster = null;
     let activeHeader = null;
 
-    // Constrói a estrutura baseada na Ordem do Layout
     layout.forEach(item => {
         if (item.tipo_linha === 'master') {
             activeMaster = item.grupo_calculo;
@@ -91,7 +81,6 @@ function processDataTree(layout, lancamentos) {
         }
     });
 
-    // Popula com os valores dos Lançamentos
     lancamentos.forEach(lanc => {
         let ref = tree.contasMap[lanc.cat_id];
         if (!ref) return;
@@ -99,18 +88,18 @@ function processDataTree(layout, lancamentos) {
         let val = lanc.valor;
         let m = lanc.mes;
 
-        // Atualiza Conta
         ref.conta.total += val;
         ref.conta.meses[m] += val;
 
-        // Atualiza Header
         let hObj = tree.masters[ref.master].headers[ref.header];
         hObj.total += val;
         hObj.meses[m] += val;
 
-        // Atualiza Master (Aplica regras de inversão de sinal da DFC)
         let mObj = tree.masters[ref.master];
-        if (regrasSubtracaoHeader.includes(ref.header)) {
+        
+        if (ref.header === 'deducoes') {
+            
+        } else if (regrasSubtracaoHeader.includes(ref.header)) {
             mObj.total -= val;
             mObj.meses[m] -= val;
         } else {
@@ -119,66 +108,150 @@ function processDataTree(layout, lancamentos) {
         }
     });
 
-    // Helpers globais para a árvore
     tree.getM = (masterSlug) => tree.masters[masterSlug] ? tree.masters[masterSlug].total : 0;
-    
     return tree;
 }
 
-// ==========================================
-// 2. KPIS GERAIS
-// ==========================================
-function renderKPIs(tree, lancamentos) {
-    // Calcula meses fechados (meses com movimentação > 0)
-    let mesesAtivos = new Set(lancamentos.map(l => l.mes)).size;
-    if (mesesAtivos === 0) mesesAtivos = 1; // Prevenção de divisão por zero
 
-    // 1. Geração Líquida (Até Capex)
-    let rec = tree.getM('grp_recebimentos');
-    let custos = tree.getM('grp_custos_var');
+function renderKPIs(tree, lancamentos) {
+    let mesesAtivos = new Set(lancamentos.map(l => l.mes)).size;
+    if (mesesAtivos === 0) mesesAtivos = 1; 
+
+    let recBruta = tree.getM('grp_recebimentos');
+    let ded = tree.masters['grp_recebimentos']?.headers['deducoes']?.total || 0;
+    let recLiq = recBruta - ded;
+
+    let despVar = tree.masters['grp_custos_var']?.headers['desp_var']?.total || 0;
+    let recDesp = tree.masters['grp_custos_var']?.headers['rec_desp']?.total || 0;
+    let rol = recLiq - despVar + recDesp;
+
+    let custos = tree.masters['grp_custos_var']?.headers['custos']?.total || 0;
     let desp = tree.getM('grp_desp_op');
-    let fin = tree.getM('grp_financeiro'); // Já líquido
+    let fin = tree.getM('grp_financeiro'); 
     let imp = tree.getM('grp_impostos');
     let soc = tree.getM('grp_socios');
     let capex = tree.getM('grp_capex');
     
-    let geracaoLiquida = rec - custos - desp + fin - imp - soc - capex;
+    let mcb = rol - custos;
+    let geracaoLiquida = mcb - desp + fin - imp - soc - capex;
 
-    // 2. Saldo Final (Geração Líquida + Empréstimos Líquidos)
     let emp = tree.getM('grp_emprestimos');
     let saldoFinal = geracaoLiquida + emp;
 
-    // 3. Burn Rate (Média de Saídas Operacionais)
-    // Burn Rate = (Custos + Despesas Op) / meses ativos
-    let totalBurn = custos + desp; 
+    let totalBurn = despVar + custos + desp; 
     let burnRate = totalBurn / mesesAtivos;
 
-    // 4. Runway
-    let runway = burnRate > 0 ? (saldoFinal / burnRate).toFixed(1) : "N/A ";
+    let runway = burnRate > 0 ? (saldoFinal / burnRate).toFixed(1) : "N/A";
 
-    // Injeção na Tela
-    document.getElementById('kpiSaldoFinal').innerText = brl(saldoFinal);
-    document.getElementById('kpiSaldoFinal').style.color = saldoFinal < 0 ? 'var(--danger)' : '#166534';
+    
+    let elSaldo = document.getElementById('kpiSaldoFinal');
+    elSaldo.innerText = brl(saldoFinal);
+    elSaldo.style.color = saldoFinal < 0 ? 'var(--danger)' : '#166534';
+    let cardSaldo = elSaldo.closest('.kpi-card');
+    if (cardSaldo) {
+        cardSaldo.removeAttribute('title'); // Remove o nativo caso exista
+        cardSaldo.dataset.kpiTooltip = `CÁLCULO DO SALDO FINAL\n\n(+) Geração Líquida: ${brl(geracaoLiquida)}\n(+) Empréstimos Líquidos: ${brl(emp)}\n\n(=) Saldo Final: ${brl(saldoFinal)}`;
+        cardSaldo.style.cursor = 'help';
+    }
+
     document.getElementById('kpiMesesFechados').innerText = `${mesesAtivos}/12 meses com registro`;
 
-    document.getElementById('kpiGeracaoLiquida').innerText = brl(geracaoLiquida);
-    document.getElementById('kpiGeracaoLiquida').style.color = geracaoLiquida < 0 ? 'var(--danger)' : 'var(--text)';
+   
+    let elGL = document.getElementById('kpiGeracaoLiquida');
+    elGL.innerText = brl(geracaoLiquida);
+    elGL.style.color = geracaoLiquida < 0 ? 'var(--danger)' : 'var(--text)';
+    let cardGL = elGL.closest('.kpi-card');
+    if (cardGL) {
+        cardGL.removeAttribute('title');
+        cardGL.dataset.kpiTooltip = `CÁLCULO DA GERAÇÃO LÍQUIDA\n\n(+) ROL: ${brl(rol)}\n(-) Custos (CSV): ${brl(custos)}\n(-) Desp. Operacionais: ${brl(desp)}\n(±) Resultado Financeiro: ${brl(fin)}\n(-) Impostos: ${brl(imp)}\n(-) Sócios: ${brl(soc)}\n(-) CAPEX: ${brl(capex)}\n\n(=) Geração Líquida: ${brl(geracaoLiquida)}`;
+        cardGL.style.cursor = 'help';
+    }
 
-    document.getElementById('kpiBurnRate').innerText = brl(burnRate);
+    let elBurn = document.getElementById('kpiBurnRate');
+    elBurn.innerText = brl(burnRate);
+    let cardBurn = elBurn.closest('.kpi-card');
+    if (cardBurn) {
+        cardBurn.removeAttribute('title');
+        cardBurn.dataset.kpiTooltip = `CÁLCULO DO GASTO MENSAL\n\n(+) Despesas Variáveis: ${brl(despVar)}\n(+) Custos (CSV): ${brl(custos)}\n(+) Desp. Operacionais: ${brl(desp)}\n\n(=) Total Saídas Operacionais: ${brl(totalBurn)}\n(÷) Meses com Lançamento: ${mesesAtivos}\n\n(=) Burn Rate Mensal: ${brl(burnRate)}`;
+        cardBurn.style.cursor = 'help';
+    }
 
-    document.getElementById('kpiRunway').innerText = `${runway} Meses`;
+    let elRunway = document.getElementById('kpiRunway');
+    elRunway.innerText = `${runway} Meses`;
+    let cardRunway = elRunway.closest('.kpi-card');
+    if (cardRunway) {
+        cardRunway.removeAttribute('title');
+        cardRunway.dataset.kpiTooltip = `CÁLCULO DO FÔLEGO FINANCEIRO\n\nSaldo em Caixa Atual: ${brl(saldoFinal)}\n(÷) Gasto Mensal: ${brl(burnRate)}\n\n(=) Tempo de Sobrevivência: ${runway} meses`;
+        cardRunway.style.cursor = 'help';
+    }
+
+    initCustomTooltip();
 }
 
-// ==========================================
-// 3. CHART: WATERFALL (PONTE)
-// ==========================================
+function initCustomTooltip() {
+    let tooltip = document.getElementById('kpi-custom-tooltip');
+    
+    
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'kpi-custom-tooltip';
+        tooltip.style.position = 'fixed';
+        tooltip.style.background = '#1e293b';
+        tooltip.style.color = '#f8fafc';
+        tooltip.style.padding = '12px 16px';
+        tooltip.style.borderRadius = '8px';
+        tooltip.style.fontSize = '13px';
+        tooltip.style.lineHeight = '1.6';
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.zIndex = '999999';
+        tooltip.style.opacity = '0';
+        tooltip.style.transition = 'opacity 0.2s ease';
+        tooltip.style.whiteSpace = 'pre-wrap'; 
+        tooltip.style.boxShadow = '0 10px 25px rgba(0,0,0,0.3)';
+        document.body.appendChild(tooltip);
+    }
+
+    document.querySelectorAll('.kpi-card').forEach(card => {
+        if (!card.dataset.kpiTooltip) return;
+
+        
+        card.addEventListener('mouseenter', () => {
+            tooltip.innerText = card.dataset.kpiTooltip;
+            tooltip.style.opacity = '1';
+        });
+
+        card.addEventListener('mousemove', (e) => {
+            let x = e.clientX + 15; 
+            let y = e.clientY + 15;
+            
+            const w = tooltip.offsetWidth;
+            const h = tooltip.offsetHeight;
+            if (x + w > window.innerWidth - 10) x = window.innerWidth - w - 10;
+            if (y + h > window.innerHeight - 10) y = e.clientY - h - 15;
+
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+        });
+
+        
+        card.addEventListener('mouseleave', () => {
+            tooltip.style.opacity = '0';
+        });
+    });
+}
+
+
 function renderWaterfall(tree) {
     const ctx = document.getElementById('chartWaterfall').getContext('2d');
     if (charts.waterfall) charts.waterfall.destroy();
 
-    // Valores formatados conforme a DFC Clássica (Sinais matemáticos para o Waterfall)
     let vRec = tree.getM('grp_recebimentos');
-    let vCus = -tree.getM('grp_custos_var');
+    let vDed = -(tree.masters['grp_recebimentos']?.headers['deducoes']?.total || 0);
+    
+    let vDespVar = -(tree.masters['grp_custos_var']?.headers['desp_var']?.total || 0);
+    let vRecDesp = (tree.masters['grp_custos_var']?.headers['rec_desp']?.total || 0);
+    let vCus = -(tree.masters['grp_custos_var']?.headers['custos']?.total || 0);
+
     let vDesp = -tree.getM('grp_desp_op');
     let vFin = tree.getM('grp_financeiro'); 
     let vImp = -tree.getM('grp_impostos');
@@ -186,7 +259,6 @@ function renderWaterfall(tree) {
     let vCap = -tree.getM('grp_capex');
     let vEmp = tree.getM('grp_emprestimos');
 
-    // Construção dos 'Degraus' (Start, End)
     let steps = [];
     let current = 0;
 
@@ -196,23 +268,24 @@ function renderWaterfall(tree) {
         current = end;
     };
 
-    pushStep(vRec);  // 1. Receitas Líquidas
-    pushStep(vCus);  // 2. Custos
-    pushStep(vDesp); // 3. Despesas
-    pushStep(vFin);  // 4. Financeiro
-    pushStep(vImp);  // 5. Impostos
-    pushStep(vSoc);  // 6. Sócios
-    pushStep(vCap);  // 7. Capex
-    pushStep(vEmp);  // 8. Empréstimos
+    pushStep(vRec);
+    pushStep(vDed);
+    pushStep(vDespVar);
+    pushStep(vRecDesp);
+    pushStep(vCus);
+    pushStep(vDesp);
+    pushStep(vFin);
+    pushStep(vImp);
+    pushStep(vSoc);
+    pushStep(vCap);
+    pushStep(vEmp);
 
-    // 9. Saldo Final (Barra Total que parte do 0)
     steps.push([0, current]);
 
-    const labels = ["Receitas", "Custos", "Desp. Op.", "Financeiro", "Impostos", "Sócios", "Capex", "Empréstimos", "SALDO FINAL"];
+    const labels = ["Rec. Bruta", "Deduções", "Desp. Var", "Rec. Desp", "Custos", "Desp. Op.", "Financeiro", "Impostos", "Sócios", "Capex", "Empréstimos", "SALDO FINAL"];
     
-    // Cores: Verde (Entrou), Vermelho (Saiu), Azul (Totais)
     const bgColors = steps.map((s, i) => {
-        if (i === 8) return '#0f2f4a'; // Total Final
+        if (i === 11) return '#0f2f4a'; 
         return s[1] >= s[0] ? '#166534' : '#d92d20'; 
     });
 
@@ -245,39 +318,34 @@ function renderWaterfall(tree) {
     });
 }
 
-// ==========================================
-// 4. CHART: STACKED BARS (MENSAL)
-// ==========================================
+
 function renderStackedBars(tree) {
     const ctx = document.getElementById('chartStacked').getContext('2d');
     if (charts.stacked) charts.stacked.destroy();
 
     let labels = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
     
-    // Arrays mensais (1 a 12)
     let entradas = new Array(12).fill(0);
     let saidas = new Array(12).fill(0);
-
-    // Mapeamento rudimentar: O que é Entrada e Saída
-    // Entradas: Recebimentos, Entradas Fin (header fin_entrada), Entradas Emp (header emp_entrada)
-    // Saídas: Restante
     
     for (let m = 1; m <= 12; m++) {
-        // Recebimentos é tratado como Entrada pura (bruta) aqui para visualização
         if(tree.masters['grp_recebimentos']) entradas[m-1] += tree.masters['grp_recebimentos'].meses[m];
+        if(tree.masters['grp_recebimentos']?.headers['deducoes']) saidas[m-1] -= tree.masters['grp_recebimentos'].headers['deducoes'].meses[m];
         
-        // Saídas Operacionais
-        if(tree.masters['grp_custos_var']) saidas[m-1] -= tree.masters['grp_custos_var'].meses[m];
+        
+        if(tree.masters['grp_custos_var']?.headers['desp_var']) saidas[m-1] -= tree.masters['grp_custos_var'].headers['desp_var'].meses[m];
+        if(tree.masters['grp_custos_var']?.headers['custos']) saidas[m-1] -= tree.masters['grp_custos_var'].headers['custos'].meses[m];
+        if(tree.masters['grp_custos_var']?.headers['rec_desp']) entradas[m-1] += tree.masters['grp_custos_var'].headers['rec_desp'].meses[m];
+
         if(tree.masters['grp_desp_op']) saidas[m-1] -= tree.masters['grp_desp_op'].meses[m];
         if(tree.masters['grp_impostos']) saidas[m-1] -= tree.masters['grp_impostos'].meses[m];
         if(tree.masters['grp_socios']) saidas[m-1] -= tree.masters['grp_socios'].meses[m];
         if(tree.masters['grp_capex']) saidas[m-1] -= tree.masters['grp_capex'].meses[m];
 
-        // Múltiplos Headers dentro de Fin/Emp
         let fin = tree.masters['grp_financeiro'];
         if(fin) {
             if(fin.headers['fin_entrada']) entradas[m-1] += fin.headers['fin_entrada'].meses[m];
-            if(fin.headers['fin_saida']) saidas[m-1] -= fin.headers['fin_saida'].meses[m]; // Fica negativo visualmente
+            if(fin.headers['fin_saida']) saidas[m-1] -= fin.headers['fin_saida'].meses[m];
         }
 
         let emp = tree.masters['grp_emprestimos'];
@@ -307,24 +375,31 @@ function renderStackedBars(tree) {
     });
 }
 
-// ==========================================
-// 5. CHART: YoY (EBITDA MENSAL)
-// ==========================================
+
 function renderYoY(tree1, tree2, ano1, ano2) {
     const ctx = document.getElementById('chartYoY').getContext('2d');
     if (charts.yoy) charts.yoy.destroy();
 
     let labels = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
     
-    // Calcula EBITDA Mensal (Recebimentos - Custos - Desp_Op)
     const calcEBITDA = (t) => {
         let arr = [];
         if (!t) return new Array(12).fill(0);
         for (let m = 1; m <= 12; m++) {
             let rec = t.masters['grp_recebimentos'] ? t.masters['grp_recebimentos'].meses[m] : 0;
-            let cus = t.masters['grp_custos_var'] ? t.masters['grp_custos_var'].meses[m] : 0;
+            let ded = t.masters['grp_recebimentos']?.headers['deducoes'] ? t.masters['grp_recebimentos'].headers['deducoes'].meses[m] : 0;
+            let recLiq = rec - ded;
+
+            let despVar = t.masters['grp_custos_var']?.headers['desp_var'] ? t.masters['grp_custos_var'].headers['desp_var'].meses[m] : 0;
+            let recDesp = t.masters['grp_custos_var']?.headers['rec_desp'] ? t.masters['grp_custos_var'].headers['rec_desp'].meses[m] : 0;
+            let rol = recLiq - despVar + recDesp;
+
+            let cus = t.masters['grp_custos_var']?.headers['custos'] ? t.masters['grp_custos_var'].headers['custos'].meses[m] : 0;
+            let mcb = rol - cus;
+
             let desp = t.masters['grp_desp_op'] ? t.masters['grp_desp_op'].meses[m] : 0;
-            arr.push(rec - cus - desp);
+            
+            arr.push(mcb - desp);
         }
         return arr;
     };
@@ -360,14 +435,11 @@ function renderYoY(tree1, tree2, ano1, ano2) {
     });
 }
 
-// ==========================================
-// 6. CHART: PARETO 80/20 (TOP MOVIMENTAÇÕES)
-// ==========================================
+
 function renderPareto(tree) {
     const ctx = document.getElementById('chartPareto').getContext('2d');
     if (charts.pareto) charts.pareto.destroy();
 
-    // Reúne todas as contas, pega valores absolutos
     let todasContas = [];
     Object.values(tree.contasMap).forEach(ref => {
         if (ref.conta.total !== 0) {
@@ -386,7 +458,7 @@ function renderPareto(tree) {
 
     let labels = [];
     let barData = [];
-    let lineData = []; // Acumulado %
+    let lineData = []; 
     let acc = 0;
 
     top10.forEach(item => {
@@ -432,16 +504,16 @@ function renderPareto(tree) {
     });
 }
 
-// ==========================================
-// 7. EXPLORADOR & ANÁLISE VERTICAL
-// ==========================================
+
 function renderExplorerTree(tree) {
     const container = document.getElementById('explorerTree');
     container.innerHTML = '';
 
-    // A Receita Líquida é a base 100% da Análise Vertical
-    let receitaLiquida = tree.getM('grp_recebimentos');
-    if (receitaLiquida === 0) receitaLiquida = 1; // Prevenir divisão por zero
+    let rec = tree.getM('grp_recebimentos');
+    let ded = tree.masters['grp_recebimentos']?.headers['deducoes']?.total || 0;
+    let receitaLiquida = rec - ded;
+
+    if (receitaLiquida === 0) receitaLiquida = 1; 
 
     const getPerc = (val) => {
         return ((val / receitaLiquida) * 100).toFixed(2) + '%';
@@ -449,14 +521,16 @@ function renderExplorerTree(tree) {
 
     let html = '<ul class="explorer-list">';
 
-    // Itera pelos Masters (Ordenados indiretamente por quem foi criado primeiro, ou seja, pelo ID/Ordem do layout no python)
     for (const [mSlug, mData] of Object.entries(tree.masters)) {
         if (mData.total === 0 && Object.keys(mData.headers).length === 0) continue;
+
+        let overrideName = mData.texto;
+        if (mSlug === 'grp_recebimentos') overrideName = '1. RECEBIMENTOS';
 
         html += `
             <li class="exp-item-master">
                 <div class="exp-row master-row" onclick="this.parentElement.classList.toggle('open')">
-                    <div class="exp-title"><i class="fa-solid fa-chevron-right chevron"></i> ${mData.texto}</div>
+                    <div class="exp-title"><i class="fa-solid fa-chevron-right chevron"></i> ${overrideName}</div>
                     <div class="exp-metrics">
                         <span class="exp-val">${brl(mData.total)}</span>
                         <span class="exp-perc badge">${getPerc(mData.total)}</span>
@@ -495,9 +569,9 @@ function renderExplorerTree(tree) {
                 `;
             });
 
-            html += `</ul></li>`; // Fecha Header
+            html += `</ul></li>`; 
         }
-        html += `</ul></li>`; // Fecha Master
+        html += `</ul></li>`; 
     }
 
     html += '</ul>';

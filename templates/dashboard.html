@@ -2,7 +2,6 @@
 
 {% block content %}
 <div class="dashboard-wrapper">
-    <!-- FILTROS -->
     <div class="filters-bar">
         <div class="filter-group">
             <label>Ano de Análise</label>
@@ -28,7 +27,6 @@
         </button>
     </div>
 
-    <!-- KPI CARDS -->
     <div class="kpi-grid">
         <div class="kpi-card">
             <div class="kpi-title">Saldo Final de Caixa (Ano até a Data)</div>
@@ -96,7 +94,7 @@
                 <p style="font-size: 12px; color: var(--muted); margin-top: 5px;">Clique nos grupos para expandir e ver os detalhes. % = Representatividade em relação à Receita Líquida.</p>
             </div>
             <div class="explorer-container" id="explorerTree">
-                <div style="padding: 20px; text-align: center; color: var(--muted);">Processando Árvore DFC...</div>
+                <div style="padding: 20px; text-align: center; color: var(--muted);">Processando DFC...</div>
             </div>
         </div>
 
@@ -106,6 +104,5 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-<!-- TOASTS CONTAINER NO DASHBOARD -->
 <div id="toastHost" class="toast-host"></div>
 {% endblock %}

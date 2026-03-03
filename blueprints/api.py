@@ -177,8 +177,8 @@ def delete_conta():
     # 2. VÁLVULA DE ESCAPE PARA CONTAS DUPLICADAS NO LAYOUT
     usos_no_layout = LayoutDFC.query.filter_by(categoria_id=item.categoria_id).count()
 
-    # Se a conta estiver no layout APENAS UMA VEZ, não deixa excluir se tiver lançamentos.
-    # Se estiver mais de uma vez (duplicada pelo bug), deixa excluir a linha livremente!
+    # Se a conta estiver no layout APENAS UMA VEZ, não deixa excluir se tiver lançamentos
+    # Se estiver mais de uma vez (duplicada pelo bug), deixa excluir a linha livremente
     if usos_no_layout <= 1:
         tem_lanc = Lancamento.query.filter_by(categoria_id=item.categoria_id).count()
         if tem_lanc > 0:

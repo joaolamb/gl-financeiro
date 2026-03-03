@@ -7,15 +7,12 @@ from models import User, Categoria, LayoutDFC
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
 
-    # garante a pasta instance/
     os.makedirs(app.instance_path, exist_ok=True)
 
-    # usa o banco dentro de instance/financeiro.db
     db_path = os.path.join(app.instance_path, "financeiro.db")
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # em produção, coloque SECRET_KEY em variável de ambiente
     app.secret_key = os.getenv("SECRET_KEY", "segredo_financeiro_absoluto_pro")
 
     db.init_app(app)
@@ -63,11 +60,8 @@ def setup_db():
         db.create_all()
         print("Banco reiniciado.")
 
-        # ESTRUTURA DA TUPLA:
-        # (TIPO, Codigo_ou_Texto, GRUPO_ATUAL, Nome_Conta_ou_None, GRUPO_PAI)
-
         layout_map = [
-            # === 1. MASTER: RECEBIMENTOS (Receita Líquida) ===
+            
             ("master", "1. RECEBIMENTOS (Receita Líquida)", "grp_recebimentos", None, None),
 
                 ("header", "Receitas Diretas", "rec_direta", None, "grp_recebimentos"),
@@ -96,7 +90,7 @@ def setup_db():
                 ("conta", "2007", "deducoes", "(-) ISS", "grp_recebimentos"),
                 ("conta", "2020", "deducoes", "(-) Devolução De Vendas", "grp_recebimentos"),
 
-            # === 2. MASTER: CUSTOS VARIAVEIS ===
+            
             ("master", "2. CUSTOS E DESPESAS VARIÁVEIS", "grp_custos_var", None, None),
 
                 ("header", "Despesas Variáveis", "desp_var", None, "grp_custos_var"),
@@ -122,7 +116,7 @@ def setup_db():
 
             ("total", "(=) MCB - Margem de Contribuição Bruta", "mcb", "blue", None),
 
-            # === 3. MASTER: DESPESAS OPERACIONAIS ===
+            
             ("master", "3. DESPESAS OPERACIONAIS", "grp_desp_op", None, None),
 
                 ("header", "Folha de Pagamento", "folha", None, "grp_desp_op"),
@@ -208,7 +202,7 @@ def setup_db():
 
             ("total", "(=) EBITDA - Lucro Operacional", "ebitda", "blue", None),
 
-            # === 4. MASTER: RESULTADO FINANCEIRO ===
+            
             ("master", "4. RESULTADO FINANCEIRO", "grp_financeiro", None, None),
 
                 ("header", "Despesas Financeiras", "fin_saida", None, "grp_financeiro"),
@@ -224,13 +218,13 @@ def setup_db():
 
             ("total", "(=) LAIR - Lucro Antes IRPJ/CSLL", "lair", "gray", None),
 
-            # === 5. MASTER: IMPOSTOS ===
+            
             ("master", "5. IRPJ E CSLL", "grp_impostos", None, None),
                 ("header", "Impostos s/ Lucro", "impostos", None, "grp_impostos"),
                 ("conta", "2008", "impostos", "(-) IRPJ", "grp_impostos"),
                 ("conta", "2009", "impostos", "(-) CSLL", "grp_impostos"),
 
-            # === 6. MASTER: SÓCIOS ===
+            
             ("master", "6. SÓCIOS", "grp_socios", None, None),
                 ("header", "Movimentação de Sócios", "socios", None, "grp_socios"),
                 ("conta", "3501", "socios", "Pró Labore", "grp_socios"),
@@ -238,7 +232,7 @@ def setup_db():
 
             ("total", "(=) Geração Bruta de Caixa", "geracao_bruta", "gray", None),
 
-            # === 7. MASTER: INVESTIMENTOS ===
+            
             ("master", "7. INVESTIMENTOS (CAPEX)", "grp_capex", None, None),
                 ("header", "Aquisições", "capex", None, "grp_capex"),
                 ("conta", "4001", "capex", "Equipamentos de Informática", "grp_capex"),
@@ -251,7 +245,7 @@ def setup_db():
 
             ("total", "(=) Geração Líquida de Caixa", "geracao_liquida", "blue", None),
 
-            # === 8. MASTER: EMPRÉSTIMOS ===
+            
             ("master", "8. EMPRÉSTIMOS E FINANCIAMENTOS", "grp_emprestimos", None, None),
                 ("header", "Pagamentos (Amortização + Juros)", "emp_saida", None, "grp_emprestimos"),
                 ("conta", "3801", "emp_saida", "Giro Pronampe", "grp_emprestimos"),

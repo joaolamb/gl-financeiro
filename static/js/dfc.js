@@ -1,6 +1,4 @@
 let EDIT_MODE = false;
-
-// Grupos que entram negativamente ou que devem ser sinalizados de vermelho se for custo/despesa
 const gruposRed = [
     'deducoes','desp_var','custos','folha','outras_pessoal','estrutura',
     'veiculos','terceiros','consumo','informatica','marketing','comunicacao',
@@ -73,7 +71,6 @@ function recalculateTotals() {
     const subgrupos = {};
     const masters = {};
 
-    // 1. Inputs e Subgrupos (Headers)
     document.querySelectorAll('.money-mask').forEach(inp => {
         let val = parseBRL(inp.value);
         let mes = parseInt(inp.dataset.mes);
@@ -86,7 +83,6 @@ function recalculateTotals() {
         else inp.style.color = 'inherit';
     });
 
-    // 2. Linhas de Contas
     document.querySelectorAll('.row-conta').forEach(row => {
         let totalRow = 0;
         let isRed = false;
@@ -104,13 +100,11 @@ function recalculateTotals() {
         }
     });
 
-    // 3. Inicializar Masters
     document.querySelectorAll('.row-master').forEach(row => {
         let id = row.id.replace('master-', '');
         if (!masters[id]) masters[id] = new Float64Array(13);
     });
 
-    // Grupos que devem ser SUBTRAÍDOS do Master porque o Master reflete um saldo líquido (Entradas - Saídas)
     const gruposSubtraemMaster = ['deducoes', 'rec_desp', 'fin_saida', 'emp_saida'];
 
     // 4. Calcular Headers
@@ -133,7 +127,6 @@ function recalculateTotals() {
                 }
                 somaHeader += val;
 
-                // Aqui está a correção: se for um grupo de saída dentro de um Master líquido, ele subtrai em vez de somar.
                 if (gruposSubtraemMaster.includes(grp)) {
                     masters[masterGrp][m] -= val;
                 } else {
@@ -149,7 +142,6 @@ function recalculateTotals() {
         }
     }
 
-    // 5. Atualizar DOM do Master
     for (const mGrp in masters) {
         let masterRow = document.getElementById(`master-${mGrp}`);
         if (masterRow) {
@@ -167,10 +159,8 @@ function recalculateTotals() {
         }
     }
 
-    // 6. Totais Finais (MCB, EBITDA, etc)
+
     const GetM = (k, m) => masters[k] ? masters[k][m] : 0;
-    
-    // Arrays para guardar somas anuais dos totais (para a última coluna)
     const sumsAnuais = {
         mcb: 0, ebitda: 0, lair: 0, lucro_liquido: 0, 
         geracao_bruta: 0, geracao_liquida: 0, saldo_final: 0
@@ -185,14 +175,13 @@ function recalculateTotals() {
         updateTotal('ebitda', m, ebitda);
         sumsAnuais.ebitda += ebitda;
 
-        // O Master Financeiro já está líquido (fin_entrada - fin_saida) após a correção
         let finLiq = GetM('grp_financeiro', m); 
         let lair = ebitda + finLiq;
         updateTotal('lair', m, lair);
         sumsAnuais.lair += lair;
 
         let lucro = lair - GetM('grp_impostos', m);
-        updateTotal('lucro_liquido', m, lucro); // Caso exista
+        updateTotal('lucro_liquido', m, lucro);
         sumsAnuais.lucro_liquido += lucro;
 
         let gBruta = lucro - GetM('grp_socios', m);
@@ -203,14 +192,12 @@ function recalculateTotals() {
         updateTotal('geracao_liquida', m, gLiq);
         sumsAnuais.geracao_liquida += gLiq;
 
-        // O Master Empréstimos já está líquido (emp_entrada - emp_saida) após a correção
         let empLiq = GetM('grp_emprestimos', m); 
         let final = gLiq + empLiq;
         updateTotal('saldo_final', m, final);
         sumsAnuais.saldo_final += final;
     }
     
-    // Atualiza a coluna de total do ano para os totais
     for (const [key, value] of Object.entries(sumsAnuais)) {
         let el = document.querySelector(`#total-${key} .total-ano`);
         if(el) {
@@ -228,7 +215,6 @@ function updateTotal(id, mes, valor) {
     }
 }
 
-// === MODAIS ===
 function showModal(title, html, onConfirm) {
     document.getElementById('modalTitle').innerText = title;
     document.getElementById('modalBody').innerHTML = html;
@@ -347,7 +333,6 @@ function requestDeleteConta(id) {
     });
 }
 
-// Accordion
 function toggleAccordion(id) {
     const icon = document.getElementById(`icon-${id}`);
     const rows = document.querySelectorAll(`tr[data-pai="${id}"]`);

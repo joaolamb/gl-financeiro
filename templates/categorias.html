@@ -75,7 +75,6 @@
                 <td>{{ cat.codigo }}</td>
                 <td>{{ cat.nome }}</td>
                 <td>
-                    <!-- Removido o alert/confirm nativo, substituído pela função promptDelete -->
                     <a href="javascript:void(0)" onclick="promptDelete('{{ url_for('categorias.deletar', id=cat.id) }}')" style="color: #b02228; text-decoration: none; font-size: 12px; font-weight: 600;">
                         <i class="fa-solid fa-trash"></i> Excluir
                     </a>
@@ -86,7 +85,7 @@
     </table>
 </div>
 
-<!-- Modal Personalizado para Confirmação sem Alert do Navegador -->
+
 <div id="confirmOverlay" class="confirm-overlay hidden" onclick="confirmCancel()">
   <div class="confirm-dialog" onclick="event.stopPropagation()">
       <div class="confirm-left">
