@@ -409,7 +409,13 @@
                 
                 if (id === 'grp_recebimentos' && headerId === 'deducoes') return;
 
-                const isSub = gruposSubtraemMaster.includes(headerId);
+                // REGRA ABSOLUTA NA AUDITORIA VISUAL TAMBÉM
+                let isSub = false;
+                if (id === 'grp_emprestimos' && headerId !== 'emp_entrada') isSub = true;
+                else if (id === 'grp_financeiro' && headerId !== 'fin_entrada') isSub = true;
+                else if (id === 'grp_custos_var' && headerId === 'rec_desp') isSub = true; // rec_desp reduz o custo no master
+                else if (['fin_saida', 'emp_saida', 'rec_desp'].includes(headerId)) isSub = true;
+
                 highlightPrecedent(`header-${headerId}`, mes, isSub ? 'formula-sub' : 'formula-sum');
             });
         } else if (type === 'header') {
@@ -549,12 +555,13 @@
     }
 
     let debounceTimer;
+    
+    // Grupos base que se espera serem vermelhos.
     const gruposRed = [
         'deducoes','desp_var','custos','folha','outras_pessoal','estrutura',
         'veiculos','terceiros','consumo','informatica','marketing','comunicacao',
         'outras_desp','bancarias','fin_saida','impostos','socios','capex','emp_saida'
     ];
-    const gruposSubtraemMaster = ['rec_desp', 'fin_saida', 'emp_saida']; 
 
     function handleInput(input) {
         mascaraMoeda(input);
@@ -590,11 +597,29 @@
             let val = parseBRL(inp.value);
             let mes = parseInt(inp.dataset.mes);
             let grp = inp.dataset.group;
+            let masterGrp = inp.dataset.master;
+
+            // REGRA ABSOLUTA PARA PINTAR DE VERMELHO (Despesa)
+            let isSub = false;
+            if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
+            else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
+            else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = false; // rec_desp é positivo
+
+            let isRedGrp = gruposRed.includes(grp);
+            if (['grp_custos_var', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
+                if (grp !== 'rec_desp') isRedGrp = true;
+            }
+            if (masterGrp === 'grp_financeiro' && isSub) isRedGrp = true;
+            if (masterGrp === 'grp_emprestimos' && isSub) isRedGrp = true;
+            
+            let headerRow = document.getElementById(`header-${grp}`);
+            let headerText = headerRow ? headerRow.querySelector('.cell-title').innerText.toLowerCase() : '';
+            if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) isRedGrp = true;
 
             if (!subgrupos[grp]) subgrupos[grp] = new Float64Array(13);
             subgrupos[grp][mes] += val;
 
-            if (gruposRed.includes(grp) && val > 0) inp.classList.add('text-red');
+            if (isRedGrp && val > 0) inp.classList.add('text-red');
             else inp.classList.remove('text-red');
         }
 
@@ -628,7 +653,21 @@
 
                 let somaHeader = 0;
                 let vals = subgrupos[grp];
+                let headerText = headerRow.querySelector('.cell-title').innerText.toLowerCase();
+
+                // REGRA ABSOLUTA DO PROCESSAMENTO
+                let isSub = false;
+                if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
+                else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
+                else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = true; // Subtrai porque no custo, abater significa recuperar dinheiro
+
                 let isRedGrp = gruposRed.includes(grp);
+                if (['grp_custos_var', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
+                    if (grp !== 'rec_desp') isRedGrp = true;
+                }
+                if (masterGrp === 'grp_financeiro' && isSub) isRedGrp = true;
+                if (masterGrp === 'grp_emprestimos' && isSub) isRedGrp = true;
+                if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) isRedGrp = true;
 
                 for (let m = 1; m <= 12; m++) {
                     let val = vals[m];
@@ -639,9 +678,12 @@
                     }
                     somaHeader += val;
 
-                    if (grp === 'deducoes') {
-                        // Não subtrai do master, pois o master é apenas a Receita Bruta
-                    } else if (gruposSubtraemMaster.includes(grp)) {
+                    // O Master deve sempre manter um saldo coerente
+                    if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) {
+                        masters[masterGrp][m] -= val;
+                    } else if (masterGrp === 'grp_recebimentos') {
+                        masters[masterGrp][m] += val;
+                    } else if (isSub) {
                         masters[masterGrp][m] -= val;
                     } else {
                         masters[masterGrp][m] += val;
@@ -682,55 +724,63 @@
         for (let m = 1; m <= 12; m++) {
             
             // CÁLCULO DA RECEITA LÍQUIDA: Bruto - Deduções
-            let recBruta = GetM('grp_recebimentos', m);
-            let ded = subgrupos['deducoes'] ? subgrupos['deducoes'][m] : 0;
-            let recLiq = recBruta - ded;
-            
+            let recLiq = GetM('grp_recebimentos', m);
             updateTotal('receita_liquida', m, recLiq);
             sumsAnuais.receita_liquida += recLiq;
 
             // CÁLCULO DA ROL: Receita Líquida - Despesas Variáveis + Recuperação Despesas
+            let custosVarNet = GetM('grp_custos_var', m);
             let despVar = subgrupos['desp_var'] ? subgrupos['desp_var'][m] : 0;
             let recDesp = subgrupos['rec_desp'] ? subgrupos['rec_desp'][m] : 0;
-            let rol = recLiq - despVar + recDesp;
+            let custos = subgrupos['custos'] ? subgrupos['custos'][m] : 0;
             
+            // Permite capturar todas as categorias costumizadas de custos variaveis do utilizador
+            let customCustosVar = custosVarNet - (despVar + custos - recDesp);
+            let totalDespVar = despVar + customCustosVar; 
+
+            let rol = recLiq - totalDespVar + recDesp;
             updateTotal('rol', m, rol);
             sumsAnuais.rol += rol;
 
             // CÁLCULO DA MCB: ROL - Custos dos Serviços Vendidos
-            let custos = subgrupos['custos'] ? subgrupos['custos'][m] : 0;
             let mcb = rol - custos;
-            
             updateTotal('mcb', m, mcb);
             sumsAnuais.mcb += mcb;
 
+            // CÁLCULO DO EBITDA
             let ebitda = mcb - GetM('grp_desp_op', m);
             updateTotal('ebitda', m, ebitda);
             sumsAnuais.ebitda += ebitda;
 
-            let finLiq = GetM('grp_financeiro', m);
-            let lair = ebitda + finLiq;
+            // CÁLCULO DO LAIR 
+            // O getM de 'grp_financeiro' já é o saldo líquido de Entradas - Saídas por causa da Regra Absoluta!
+            let lair = ebitda + GetM('grp_financeiro', m);
             updateTotal('lair', m, lair);
             sumsAnuais.lair += lair;
 
+            // CÁLCULO DO Lucro Líquido
             let lucro = lair - GetM('grp_impostos', m);
             updateTotal('lucro_liquido', m, lucro);
             sumsAnuais.lucro_liquido += lucro;
 
+            // CÁLCULO DA Geração Bruta
             let gBruta = lucro - GetM('grp_socios', m);
             updateTotal('geracao_bruta', m, gBruta);
             sumsAnuais.geracao_bruta += gBruta;
 
+            // CÁLCULO DA Geração Líquida
             let gLiq = gBruta - GetM('grp_capex', m);
             updateTotal('geracao_liquida', m, gLiq);
             sumsAnuais.geracao_liquida += gLiq;
 
-            let empLiq = GetM('grp_emprestimos', m);
-            let final = gLiq + empLiq;
+            // CÁLCULO DO Saldo Final 
+            // O getM de 'grp_emprestimos' já é o saldo líquido de Entradas - Saídas por causa da Regra Absoluta!
+            let final = gLiq + GetM('grp_emprestimos', m);
             updateTotal('saldo_final', m, final);
             sumsAnuais.saldo_final += final;
         }
         
+        // Atualiza os totais anuais perfeitamente
         for (const [key, value] of Object.entries(sumsAnuais)) {
             let el = document.querySelector(`#total-${key} [data-ano="true"]`);
             if (el) {
