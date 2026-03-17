@@ -177,8 +177,8 @@ def delete_conta():
     # 2. VÁLVULA DE ESCAPE PARA CONTAS DUPLICADAS NO LAYOUT
     usos_no_layout = LayoutDFC.query.filter_by(categoria_id=item.categoria_id).count()
 
-    # Se a conta estiver no layout APENAS UMA VEZ, não deixa excluir se tiver lançamentos
-    # Se estiver mais de uma vez (duplicada pelo bug), deixa excluir a linha livremente
+    # Se a conta estiver no layout APENAS UMA VEZ, não deixa excluir se tiver lançamentos.
+    # Se estiver mais de uma vez (duplicada pelo bug), deixa excluir a linha livremente!
     if usos_no_layout <= 1:
         tem_lanc = Lancamento.query.filter_by(categoria_id=item.categoria_id).count()
         if tem_lanc > 0:
@@ -198,6 +198,32 @@ def update_text():
         db.session.commit()
         return jsonify({"status": "ok"})
     return jsonify({"status": "error"})
+
+
+@bp_api.route('/update_conta', methods=['POST'])
+@login_required
+def update_conta():
+    data = request.json
+    cat_id = data.get('cat_id')
+    codigo = data.get('codigo')
+    nome = data.get('nome')
+
+    cat = Categoria.query.get(cat_id)
+    if not cat:
+        return jsonify({"status": "error", "message": "Conta não encontrada"})
+
+    # Valida se o novo código já existe em OUTRA conta
+    existing = Categoria.query.filter_by(codigo=codigo).first()
+    if existing and existing.id != cat.id:
+        return jsonify({
+            "status": "error", 
+            "message": f"O código '{codigo}' já está em uso pela conta '{existing.nome}'."
+        })
+
+    cat.codigo = codigo
+    cat.nome = nome
+    db.session.commit()
+    return jsonify({"status": "ok"})
 
 
 @bp_api.route('/dashboard/data')

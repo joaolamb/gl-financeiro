@@ -13,7 +13,7 @@
         </div>
 
         <div class="filter-group">
-            <label>Comparar ano a ano</label>
+            <label>Comparar Ano a Ano</label>
             <select id="ano2" class="form-select">
                 <option value="">Sem comparação</option>
                 {% for y in range(2024, 2031) %}
@@ -21,12 +21,29 @@
                 {% endfor %}
             </select>
         </div>
+        <div class="filter-group">
+            <label>Mês Específico</label>
+            <select id="mes_filtro" class="form-select">
+                <option value="todos">Ano Completo</option>
+                <option value="1">Janeiro</option>
+                <option value="2">Fevereiro</option>
+                <option value="3">Março</option>
+                <option value="4">Abril</option>
+                <option value="5">Maio</option>
+                <option value="6">Junho</option>
+                <option value="7">Julho</option>
+                <option value="8">Agosto</option>
+                <option value="9">Setembro</option>
+                <option value="10">Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+            </select>
+        </div>
 
         <button class="primary-btn" onclick="updateDashboard()" style="height: 42px;">
             <i class="fa-solid fa-bolt"></i> Processar Dados
         </button>
     </div>
-
     <div class="kpi-grid">
         <div class="kpi-card">
             <div class="kpi-title">Saldo Final de Caixa (Ano até a Data)</div>
@@ -49,37 +66,31 @@
             <div class="kpi-subtitle">Tempo de caixa restante</div>
         </div>
     </div>
-
     <div class="dash-grid-v2">
         <div class="dash-card full-width">
             <div class="card-header">
-                <h3><i class="fa-solid fa-water"></i> Ponte de Fluxo de Caixa (Ano até a Data)</h3>
+                <h3><i class="fa-solid fa-water"></i>Ponte de Fluxo de Caixa (Ano até a Data)</h3>
             </div>
             <div class="chart-container" style="height: 350px;">
                 <canvas id="chartWaterfall"></canvas>
             </div>
         </div>
-
         <div class="dash-card">
             <div class="card-header">
-                <h3><i class="fa-solid fa-layer-group"></i> Entradas vs Saídas Mensais</h3>
+                <h3><i class="fa-solid fa-layer-group"></i> Entradas X Saídas Mensais</h3>
             </div>
             <div class="chart-container" style="height: 300px;">
                 <canvas id="chartStacked"></canvas>
             </div>
         </div>
-
-        
         <div class="dash-card">
             <div class="card-header">
-                <h3><i class="fa-solid fa-scale-balanced"></i> Comparativo da Variação ano a ano (EBITDA)</h3>
+                <h3><i class="fa-solid fa-scale-balanced"></i>Comparativo da Variação ano a ano (EBITDA)</h3>
             </div>
             <div class="chart-container" style="height: 300px;">
                 <canvas id="chartYoY"></canvas>
             </div>
         </div>
-
-        
         <div class="dash-card full-width">
             <div class="card-header">
                 <h3><i class="fa-solid fa-chart-line"></i> Curva de Pareto (80/20) - Top Movimentações Absolutas</h3>
@@ -88,13 +99,14 @@
                 <canvas id="chartPareto"></canvas>
             </div>
         </div>
+
         <div class="dash-card full-width">
             <div class="card-header">
                 <h3><i class="fa-solid fa-magnifying-glass-chart"></i> Análise Vertical & Explorador de Contas</h3>
                 <p style="font-size: 12px; color: var(--muted); margin-top: 5px;">Clique nos grupos para expandir e ver os detalhes. % = Representatividade em relação à Receita Líquida.</p>
             </div>
             <div class="explorer-container" id="explorerTree">
-                <div style="padding: 20px; text-align: center; color: var(--muted);">Processando DFC...</div>
+                <div style="padding: 20px; text-align: center; color: var(--muted);">Processando Árvore DFC...</div>
             </div>
         </div>
 

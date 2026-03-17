@@ -2,7 +2,6 @@
 
 {% block content %}
 
-<!-- Classes de cor e efeitos de destaque Excel (Auditoria de Fórmulas) -->
 <style>
     .text-red {
         color: #d92d20 !important;
@@ -16,7 +15,7 @@
         border-radius: 4px;
     }
     
-    /* EXCEL FORMULA HIGHLIGHTS */
+    
     .formula-target {
         box-shadow: inset 0 0 0 2px #10b981 !important;
         background-color: #ecfdf5 !important;
@@ -62,6 +61,11 @@
             <span class="cell-title">{{ item.categoria.nome }}</span>
 
             <div class="row-actions">
+                <button class="icon-btn edit-only" title="Editar conta"
+                        onclick="event.stopPropagation(); openEditConta({{ item.categoria.id }}, '{{ item.categoria.codigo|e }}', '{{ item.categoria.nome|e }}')">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                
                 <button class="icon-btn danger edit-only" title="Excluir conta"
                         onclick="event.stopPropagation(); requestDeleteConta({{ item.id }})">
                     <i class="fa-solid fa-trash"></i>
@@ -129,7 +133,7 @@
             {% set ns = namespace(receita_liq_rendered=false, rol_rendered=false, lucro_rendered=false) %}
             {% for item in layout %}
             
-                <!-- INJEÇÃO DA RECEITA LÍQUIDA (Após Deduções, antes dos Custos e Despesas Variáveis) -->
+                
                 {% if not ns.receita_liq_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_custos_var' %}
                     <tr class="row-total-calc" id="total-receita_liquida" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
@@ -143,7 +147,7 @@
                     {% set ns.receita_liq_rendered = true %}
                 {% endif %}
 
-                <!-- INJEÇÃO DA ROL (Após Recuperação de Despesas, antes dos Custos CSV) -->
+                
                 {% if not ns.rol_rendered and item.tipo_linha == 'header' and item.grupo_calculo == 'custos' %}
                     <tr class="row-total-calc" id="total-rol" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
@@ -157,7 +161,7 @@
                     {% set ns.rol_rendered = true %}
                 {% endif %}
 
-                <!-- INJEÇÃO DO LUCRO LÍQUIDO ANTES DOS SÓCIOS -->
+                
                 {% if not ns.lucro_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_socios' %}
                     <tr class="row-total-calc" id="total-lucro_liquido" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
@@ -287,7 +291,6 @@
 </div>
 
 
-<!-- MODAL E TOASTS -->
 <div id="modalOverlay" class="modal-overlay hidden" onclick="closeModal(event)">
     <div class="modal" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -360,12 +363,10 @@
         return json;
     }
 
-    // ==========================================
-    // AUDITORIA DE FÓRMULAS TIPO EXCEL
-    // ==========================================
+   
     let currentHighlight = { type: null, id: null, mes: null };
 
-    // Fórmulas Matemáticas exatas para a auditoria de ecrã
+    
     const DFC_FORMULAS = {
         'receita_liquida': { sum: ['master-grp_recebimentos'], sub: ['header-deducoes'] },
         'rol': { sum: ['total-receita_liquida', 'header-rec_desp'], sub: ['header-desp_var'] },
@@ -409,7 +410,7 @@
                 
                 if (id === 'grp_recebimentos' && headerId === 'deducoes') return;
 
-                // REGRA ABSOLUTA NA AUDITORIA VISUAL TAMBÉM
+                
                 let isSub = false;
                 if (id === 'grp_emprestimos' && headerId !== 'emp_entrada') isSub = true;
                 else if (id === 'grp_financeiro' && headerId !== 'fin_entrada') isSub = true;
@@ -478,9 +479,6 @@
         }
     }
 
-    // ==========================================
-    // MOTOR DE ATUALIZAÇÃO SPA (SEM RELOAD)
-    // ==========================================
     async function refreshTableUI() {
         try {
             const url = new URL(window.location.href, window.location.origin);
@@ -556,7 +554,7 @@
 
     let debounceTimer;
     
-    // Grupos base que se espera serem vermelhos.
+    
     const gruposRed = [
         'deducoes','desp_var','custos','folha','outras_pessoal','estrutura',
         'veiculos','terceiros','consumo','informatica','marketing','comunicacao',
@@ -599,7 +597,7 @@
             let grp = inp.dataset.group;
             let masterGrp = inp.dataset.master;
 
-            // REGRA ABSOLUTA PARA PINTAR DE VERMELHO (Despesa)
+            
             let isSub = false;
             if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
             else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
@@ -655,11 +653,11 @@
                 let vals = subgrupos[grp];
                 let headerText = headerRow.querySelector('.cell-title').innerText.toLowerCase();
 
-                // REGRA ABSOLUTA DO PROCESSAMENTO
+                
                 let isSub = false;
                 if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
                 else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
-                else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = true; // Subtrai porque no custo, abater significa recuperar dinheiro
+                else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = true;
 
                 let isRedGrp = gruposRed.includes(grp);
                 if (['grp_custos_var', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
@@ -678,7 +676,7 @@
                     }
                     somaHeader += val;
 
-                    // O Master deve sempre manter um saldo coerente
+                    
                     if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) {
                         masters[masterGrp][m] -= val;
                     } else if (masterGrp === 'grp_recebimentos') {
@@ -723,18 +721,18 @@
 
         for (let m = 1; m <= 12; m++) {
             
-            // CÁLCULO DA RECEITA LÍQUIDA: Bruto - Deduções
+            
             let recLiq = GetM('grp_recebimentos', m);
             updateTotal('receita_liquida', m, recLiq);
             sumsAnuais.receita_liquida += recLiq;
 
-            // CÁLCULO DA ROL: Receita Líquida - Despesas Variáveis + Recuperação Despesas
+            
             let custosVarNet = GetM('grp_custos_var', m);
             let despVar = subgrupos['desp_var'] ? subgrupos['desp_var'][m] : 0;
             let recDesp = subgrupos['rec_desp'] ? subgrupos['rec_desp'][m] : 0;
             let custos = subgrupos['custos'] ? subgrupos['custos'][m] : 0;
             
-            // Permite capturar todas as categorias costumizadas de custos variaveis do utilizador
+            
             let customCustosVar = custosVarNet - (despVar + custos - recDesp);
             let totalDespVar = despVar + customCustosVar; 
 
@@ -742,45 +740,43 @@
             updateTotal('rol', m, rol);
             sumsAnuais.rol += rol;
 
-            // CÁLCULO DA MCB: ROL - Custos dos Serviços Vendidos
+            
             let mcb = rol - custos;
             updateTotal('mcb', m, mcb);
             sumsAnuais.mcb += mcb;
 
-            // CÁLCULO DO EBITDA
+            
             let ebitda = mcb - GetM('grp_desp_op', m);
             updateTotal('ebitda', m, ebitda);
             sumsAnuais.ebitda += ebitda;
 
-            // CÁLCULO DO LAIR 
-            // O getM de 'grp_financeiro' já é o saldo líquido de Entradas - Saídas por causa da Regra Absoluta!
+           
             let lair = ebitda + GetM('grp_financeiro', m);
             updateTotal('lair', m, lair);
             sumsAnuais.lair += lair;
 
-            // CÁLCULO DO Lucro Líquido
+            
             let lucro = lair - GetM('grp_impostos', m);
             updateTotal('lucro_liquido', m, lucro);
             sumsAnuais.lucro_liquido += lucro;
 
-            // CÁLCULO DA Geração Bruta
+            
             let gBruta = lucro - GetM('grp_socios', m);
             updateTotal('geracao_bruta', m, gBruta);
             sumsAnuais.geracao_bruta += gBruta;
 
-            // CÁLCULO DA Geração Líquida
+            
             let gLiq = gBruta - GetM('grp_capex', m);
             updateTotal('geracao_liquida', m, gLiq);
             sumsAnuais.geracao_liquida += gLiq;
 
-            // CÁLCULO DO Saldo Final 
-            // O getM de 'grp_emprestimos' já é o saldo líquido de Entradas - Saídas por causa da Regra Absoluta!
+           
             let final = gLiq + GetM('grp_emprestimos', m);
             updateTotal('saldo_final', m, final);
             sumsAnuais.saldo_final += final;
         }
         
-        // Atualiza os totais anuais perfeitamente
+        
         for (const [key, value] of Object.entries(sumsAnuais)) {
             let el = document.querySelector(`#total-${key} [data-ano="true"]`);
             if (el) {
@@ -809,9 +805,7 @@
         }).catch(() => toast("Falha ao salvar.", "error"));
     }
 
-    // =====================================
-    // NAVEGAÇÃO TIPO EXCEL (SETAS E ENTER)
-    // =====================================
+
     document.addEventListener('keydown', function(e) {
         if (!e.target.classList.contains('cell-input')) return;
 
@@ -860,9 +854,6 @@
         }
     });
 
-    // =====================================
-    // MODAIS E EDIÇÃO
-    // =====================================
 
     const modal = { action: null };
 
@@ -954,6 +945,33 @@
                 if (res.status !== "ok") return toast(res.message || "Erro ao editar.", "error");
                 
                 toast("Alteração salva.", "success");
+                closeModal();
+                await refreshTableUI();
+            }
+        );
+    }
+    
+    function openEditConta(catId, codigoAtual, nomeAtual) {
+        showModal(
+            "Editar Conta",
+            `
+            <div class="form-grid">
+                <label>Código</label>
+                <input id="edit_conta_codigo" type="text" value="${escapeHtml(codigoAtual)}" />
+                <label style="margin-top: 10px;">Nome da Conta</label>
+                <input id="edit_conta_nome" type="text" value="${escapeHtml(nomeAtual)}" />
+            </div>
+            `,
+            "Salvar",
+            async () => {
+                const codigo = document.getElementById('edit_conta_codigo').value.trim();
+                const nome = document.getElementById('edit_conta_nome').value.trim();
+                if (!codigo || !nome) return toast("Preencha código e nome.", "error");
+                
+                const res = await apiPost("{{ url_for('api.update_conta') }}", { cat_id: catId, codigo, nome });
+                if (res.status !== "ok") return toast(res.message || "Erro ao editar conta.", "error");
+                
+                toast("Conta atualizada com sucesso.", "success");
                 closeModal();
                 await refreshTableUI();
             }
