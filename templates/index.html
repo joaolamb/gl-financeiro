@@ -14,8 +14,6 @@
         background-color: #e2e8f0;
         border-radius: 4px;
     }
-    
-    
     .formula-target {
         box-shadow: inset 0 0 0 2px #10b981 !important;
         background-color: #ecfdf5 !important;
@@ -65,7 +63,7 @@
                         onclick="event.stopPropagation(); openEditConta({{ item.categoria.id }}, '{{ item.categoria.codigo|e }}', '{{ item.categoria.nome|e }}')">
                     <i class="fa-solid fa-pen"></i>
                 </button>
-                
+
                 <button class="icon-btn danger edit-only" title="Excluir conta"
                         onclick="event.stopPropagation(); requestDeleteConta({{ item.id }})">
                     <i class="fa-solid fa-trash"></i>
@@ -92,7 +90,7 @@
     </td>
     {% endfor %}
 
-    <td class="text-right cell-total-ano cursor-pointer-hover" 
+    <td class="text-right cell-total-ano cursor-pointer-hover"
         style="background-color:#f0f0f0; font-weight:600;"
         onclick="toggleHighlight('conta', '{{ item.categoria.id }}', 'ano', event)" title="Ver contas somadas">0,00</td>
 </tr>
@@ -132,8 +130,7 @@
         <tbody>
             {% set ns = namespace(receita_liq_rendered=false, rol_rendered=false, lucro_rendered=false) %}
             {% for item in layout %}
-            
-                
+
                 {% if not ns.receita_liq_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_custos_var' %}
                     <tr class="row-total-calc" id="total-receita_liquida" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
@@ -147,8 +144,7 @@
                     {% set ns.receita_liq_rendered = true %}
                 {% endif %}
 
-                
-                {% if not ns.rol_rendered and item.tipo_linha == 'header' and item.grupo_calculo == 'custos' %}
+                {% if not ns.rol_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_csv' %}
                     <tr class="row-total-calc" id="total-rol" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
                             (=) ROL - Receita Operacional Líquida
@@ -161,7 +157,6 @@
                     {% set ns.rol_rendered = true %}
                 {% endif %}
 
-                
                 {% if not ns.lucro_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_socios' %}
                     <tr class="row-total-calc" id="total-lucro_liquido" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
@@ -290,7 +285,6 @@
     </table>
 </div>
 
-
 <div id="modalOverlay" class="modal-overlay hidden" onclick="closeModal(event)">
     <div class="modal" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -317,7 +311,6 @@
   </div>
 </div>
 <div id="toastHost" class="toast-host"></div>
-
 
 <script>
     function toast(message, type = "info") {
@@ -363,10 +356,8 @@
         return json;
     }
 
-   
     let currentHighlight = { type: null, id: null, mes: null };
 
-    
     const DFC_FORMULAS = {
         'receita_liquida': { sum: ['master-grp_recebimentos'], sub: ['header-deducoes'] },
         'rol': { sum: ['total-receita_liquida', 'header-rec_desp'], sub: ['header-desp_var'] },
@@ -380,8 +371,8 @@
     };
 
     function toggleHighlight(type, id, mes, event) {
-        event.stopPropagation(); 
-        
+        event.stopPropagation();
+
         const isSame = (currentHighlight.type === type && currentHighlight.id === id && currentHighlight.mes === mes);
 
         document.querySelectorAll('.formula-target, .formula-sum, .formula-sub').forEach(el => {
@@ -407,14 +398,13 @@
         } else if (type === 'master') {
             document.querySelectorAll(`.row-header[data-pai="${id}"]`).forEach(row => {
                 const headerId = row.id.replace('header-', '');
-                
                 if (id === 'grp_recebimentos' && headerId === 'deducoes') return;
 
-                
                 let isSub = false;
                 if (id === 'grp_emprestimos' && headerId !== 'emp_entrada') isSub = true;
                 else if (id === 'grp_financeiro' && headerId !== 'fin_entrada') isSub = true;
-                else if (id === 'grp_custos_var' && headerId === 'rec_desp') isSub = true; // rec_desp reduz o custo no master
+                else if (id === 'grp_custos_var' && headerId === 'desp_var') isSub = true;
+                else if (id === 'grp_custos_var' && headerId === 'rec_desp') isSub = false;
                 else if (['fin_saida', 'emp_saida', 'rec_desp'].includes(headerId)) isSub = true;
 
                 highlightPrecedent(`header-${headerId}`, mes, isSub ? 'formula-sub' : 'formula-sum');
@@ -460,14 +450,12 @@
 
     function highlightPrecedent(precId, mes, className) {
         const parts = precId.split('-');
-        const type = parts[0]; 
+        const type = parts[0];
         const id = parts.slice(1).join('-');
-        
         const cell = getCellNode(type, id, mes);
-        
+
         if (cell) {
             cell.classList.add(className);
-            
             if (type === 'header') {
                 const row = document.getElementById(`header-${id}`);
                 if (row) {
@@ -483,31 +471,37 @@
         try {
             const url = new URL(window.location.href, window.location.origin);
             url.searchParams.set('_t', Date.now());
-            
             const res = await fetch(url.toString(), { cache: 'no-store' });
             const htmlText = await res.text();
-            
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlText, 'text/html');
             const newTbody = doc.querySelector('.finance-table tbody');
-            
+
             if (newTbody) {
                 document.querySelector('.finance-table tbody').innerHTML = newTbody.innerHTML;
-                
+
                 document.querySelectorAll('.money-mask').forEach(input => {
                     let raw = input.dataset.rawValue;
-                    if (raw && raw !== 'None') {
-                        input.value = parseFloat(raw).toFixed(2).replace('.', '');
-                        mascaraMoeda(input);
+                    if (raw !== undefined && raw !== null && raw !== '' && raw !== 'None') {
+                        const num = parseFloat(raw);
+                        if (!isNaN(num) && num !== 0) {
+                            const abs = Math.abs(num).toFixed(2).replace('.', '');
+                            input.value = (num < 0 ? '-' : '') + abs;
+                            mascaraMoeda(input);
+                        } else {
+                            input.value = '';
+                        }
+                    } else {
+                        input.value = '';
                     }
                 });
-                
+
                 currentHighlight = { type: null, id: null, mes: null };
                 restoreAccordions();
                 recalculateTotals();
             }
         } catch (error) {
-            location.reload(); 
+            location.reload();
         }
     }
 
@@ -532,7 +526,6 @@
         open.forEach(group => {
             const children = document.querySelectorAll(`tr[data-pai="${group}"]`);
             if (!children.length) return;
-
             children.forEach(r => r.classList.remove("hidden-row"));
             const icon = document.getElementById(`icon-${group}`);
             if (icon) icon.classList.add("open");
@@ -553,8 +546,7 @@
     }
 
     let debounceTimer;
-    
-    
+
     const gruposRed = [
         'deducoes','desp_var','custos','folha','outras_pessoal','estrutura',
         'veiculos','terceiros','consumo','informatica','marketing','comunicacao',
@@ -568,18 +560,47 @@
     }
 
     function mascaraMoeda(input) {
-        let value = input.value.replace(/\D/g, "");
-        if (value === "") { input.value = ""; return; }
-        value = (parseFloat(value) / 100).toFixed(2) + "";
-        value = value.replace(".", ",");
-        value = value.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,");
-        value = value.replace(/(\d)(\d{3}),/g, "$1.$2,");
-        input.value = value;
+        let raw = (input.value || '').trim();
+
+        if (raw === '') {
+            input.value = '';
+            return;
+        }
+
+        const isNegative = raw.startsWith('-');
+        let digits = raw.replace(/\D/g, '');
+
+        if (digits === '') {
+            input.value = isNegative ? '-' : '';
+            return;
+        }
+
+        let value = (parseFloat(digits) / 100).toFixed(2);
+        let [inteira, decimal] = value.split('.');
+        inteira = inteira.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+        const finalValue = `${isNegative ? '-' : ''}${inteira},${decimal}`;
+
+        if (finalValue === '0,00' || finalValue === '-0,00') {
+            input.value = '';
+            return;
+        }
+
+        input.value = finalValue;
     }
 
     function parseBRL(str) {
         if (!str) return 0;
-        return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+        if (typeof str === 'number') return str;
+
+        let s = String(str).trim();
+        if (s === '' || s === '-') return 0;
+
+        const isNegative = s.startsWith('-');
+        s = s.replace('-', '').replace(/\./g, '').replace(',', '.');
+
+        const num = parseFloat(s) || 0;
+        return isNegative ? -num : num;
     }
 
     function formatBRL(num) {
@@ -589,6 +610,7 @@
     function recalculateTotals() {
         const subgrupos = {};
         const masters = {};
+        const receitaBruta = new Float64Array(13);
 
         const inputs = document.getElementsByClassName('money-mask');
         for (let inp of inputs) {
@@ -597,19 +619,18 @@
             let grp = inp.dataset.group;
             let masterGrp = inp.dataset.master;
 
-            
             let isSub = false;
             if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
             else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
-            else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = false; // rec_desp é positivo
+            else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = false;
 
             let isRedGrp = gruposRed.includes(grp);
-            if (['grp_custos_var', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
+            if (['grp_custos_var', 'grp_csv', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
                 if (grp !== 'rec_desp') isRedGrp = true;
             }
             if (masterGrp === 'grp_financeiro' && isSub) isRedGrp = true;
             if (masterGrp === 'grp_emprestimos' && isSub) isRedGrp = true;
-            
+
             let headerRow = document.getElementById(`header-${grp}`);
             let headerText = headerRow ? headerRow.querySelector('.cell-title').innerText.toLowerCase() : '';
             if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) isRedGrp = true;
@@ -617,7 +638,7 @@
             if (!subgrupos[grp]) subgrupos[grp] = new Float64Array(13);
             subgrupos[grp][mes] += val;
 
-            if (isRedGrp && val > 0) inp.classList.add('text-red');
+            if (val < 0 || (isRedGrp && val > 0)) inp.classList.add('text-red');
             else inp.classList.remove('text-red');
         }
 
@@ -634,7 +655,7 @@
             let cellTotal = row.lastElementChild;
             cellTotal.innerText = formatBRL(totalRow);
 
-            if (isRed && totalRow > 0) cellTotal.classList.add('text-red');
+            if (totalRow < 0 || (isRed && totalRow > 0)) cellTotal.classList.add('text-red');
             else cellTotal.classList.remove('text-red');
         });
 
@@ -653,14 +674,13 @@
                 let vals = subgrupos[grp];
                 let headerText = headerRow.querySelector('.cell-title').innerText.toLowerCase();
 
-                
                 let isSub = false;
                 if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
                 else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
-                else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = true;
+                else if (masterGrp === 'grp_custos_var' && grp === 'desp_var') isSub = true;
 
                 let isRedGrp = gruposRed.includes(grp);
-                if (['grp_custos_var', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
+                if (['grp_custos_var', 'grp_csv', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
                     if (grp !== 'rec_desp') isRedGrp = true;
                 }
                 if (masterGrp === 'grp_financeiro' && isSub) isRedGrp = true;
@@ -672,15 +692,15 @@
                     let cell = headerRow.querySelector(`[data-subtotal-mes="${m}"]`);
                     if (cell) {
                         cell.innerText = formatBRL(val);
-                        cell.classList.toggle('text-red', isRedGrp && val > 0);
+                        cell.classList.toggle('text-red', val < 0 || (isRedGrp && val > 0));
                     }
                     somaHeader += val;
 
-                    
                     if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) {
                         masters[masterGrp][m] -= val;
                     } else if (masterGrp === 'grp_recebimentos') {
                         masters[masterGrp][m] += val;
+                        receitaBruta[m] += val;
                     } else if (isSub) {
                         masters[masterGrp][m] -= val;
                     } else {
@@ -691,7 +711,7 @@
                 let cellTotal = headerRow.querySelector(`[data-subtotal-ano="true"]`);
                 if (cellTotal) {
                     cellTotal.innerText = formatBRL(somaHeader);
-                    cellTotal.classList.toggle('text-red', isRedGrp && somaHeader > 0);
+                    cellTotal.classList.toggle('text-red', somaHeader < 0 || (isRedGrp && somaHeader > 0));
                 }
             }
         }
@@ -699,84 +719,72 @@
         for (const mGrp in masters) {
             let masterRow = document.getElementById(`master-${mGrp}`);
             if (masterRow) {
-                let vals = masters[mGrp];
+                let vals = mGrp === 'grp_recebimentos' ? receitaBruta : masters[mGrp];
                 let somaMaster = 0;
 
                 for (let m = 1; m <= 12; m++) {
                     let val = vals[m];
                     let cell = masterRow.querySelector(`[data-master-mes="${m}"]`);
-                    if (cell) cell.innerText = formatBRL(val);
+                    if (cell) {
+                        cell.innerText = formatBRL(val);
+                        cell.classList.toggle('text-red', val < 0);
+                    }
                     somaMaster += val;
                 }
-                masterRow.querySelector(`[data-master-ano="true"]`).innerText = formatBRL(somaMaster);
+
+                const totalCell = masterRow.querySelector(`[data-master-ano="true"]`);
+                if (totalCell) {
+                    totalCell.innerText = formatBRL(somaMaster);
+                    totalCell.classList.toggle('text-red', somaMaster < 0);
+                }
             }
         }
 
         const GetM = (k, m) => masters[k] ? masters[k][m] : 0;
-        
+
         let sumsAnuais = {
             receita_liquida: 0, rol: 0, mcb: 0, ebitda: 0, lair: 0, lucro_liquido: 0,
             geracao_bruta: 0, geracao_liquida: 0, saldo_final: 0
         };
 
         for (let m = 1; m <= 12; m++) {
-            
-            
             let recLiq = GetM('grp_recebimentos', m);
             updateTotal('receita_liquida', m, recLiq);
             sumsAnuais.receita_liquida += recLiq;
 
-            
-            let custosVarNet = GetM('grp_custos_var', m);
-            let despVar = subgrupos['desp_var'] ? subgrupos['desp_var'][m] : 0;
-            let recDesp = subgrupos['rec_desp'] ? subgrupos['rec_desp'][m] : 0;
-            let custos = subgrupos['custos'] ? subgrupos['custos'][m] : 0;
-            
-            
-            let customCustosVar = custosVarNet - (despVar + custos - recDesp);
-            let totalDespVar = despVar + customCustosVar; 
-
-            let rol = recLiq - totalDespVar + recDesp;
+            let rol = recLiq + GetM('grp_custos_var', m);
             updateTotal('rol', m, rol);
             sumsAnuais.rol += rol;
 
-            
-            let mcb = rol - custos;
+            let mcb = rol - GetM('grp_csv', m);
             updateTotal('mcb', m, mcb);
             sumsAnuais.mcb += mcb;
 
-            
             let ebitda = mcb - GetM('grp_desp_op', m);
             updateTotal('ebitda', m, ebitda);
             sumsAnuais.ebitda += ebitda;
 
-           
             let lair = ebitda + GetM('grp_financeiro', m);
             updateTotal('lair', m, lair);
             sumsAnuais.lair += lair;
 
-            
             let lucro = lair - GetM('grp_impostos', m);
             updateTotal('lucro_liquido', m, lucro);
             sumsAnuais.lucro_liquido += lucro;
 
-            
             let gBruta = lucro - GetM('grp_socios', m);
             updateTotal('geracao_bruta', m, gBruta);
             sumsAnuais.geracao_bruta += gBruta;
 
-            
             let gLiq = gBruta - GetM('grp_capex', m);
             updateTotal('geracao_liquida', m, gLiq);
             sumsAnuais.geracao_liquida += gLiq;
 
-           
             let final = gLiq + GetM('grp_emprestimos', m);
             updateTotal('saldo_final', m, final);
             sumsAnuais.saldo_final += final;
         }
-        
-        
+
         for (const [key, value] of Object.entries(sumsAnuais)) {
             let el = document.querySelector(`#total-${key} [data-ano="true"]`);
             if (el) {
@@ -805,18 +813,16 @@
         }).catch(() => toast("Falha ao salvar.", "error"));
     }
 
-
     document.addEventListener('keydown', function(e) {
         if (!e.target.classList.contains('cell-input')) return;
 
         const currentInput = e.target;
-        
+
         if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
-            
             const currentRow = currentInput.closest('tr.row-conta');
             const visibleRows = Array.from(document.querySelectorAll('tr.row-conta:not(.hidden-row)'));
             const rowIndex = visibleRows.indexOf(currentRow);
-            
+
             const rowInputs = Array.from(currentRow.querySelectorAll('.cell-input'));
             const colIndex = rowInputs.indexOf(currentInput);
 
@@ -848,12 +854,9 @@
                 }
             }
 
-            if (targetInput) {
-                targetInput.focus();
-            }
+            if (targetInput) targetInput.focus();
         }
     });
-
 
     const modal = { action: null };
 
@@ -894,7 +897,6 @@
                 const texto = document.getElementById('m_texto').value.trim();
                 const res = await apiPost("{{ url_for('api.create_master') }}", { texto });
                 if (res.status !== "ok") return toast(res.message || "Erro ao criar master.", "error");
-                
                 toast("Master criada com sucesso.", "success");
                 closeModal();
                 await refreshTableUI();
@@ -918,12 +920,9 @@
                     master_grupo: masterGrupo, texto
                 });
                 if (res.status !== "ok") return toast(res.message || "Erro ao criar header.", "error");
-                
                 toast("Subcategoria criada.", "success");
                 closeModal();
-                
                 markMasterState(masterGrupo, true);
-                
                 await refreshTableUI();
             }
         );
@@ -943,14 +942,13 @@
                 const texto = document.getElementById('t_texto').value.trim();
                 const res = await apiPost("{{ url_for('api.update_text') }}", { layout_id: layoutId, texto });
                 if (res.status !== "ok") return toast(res.message || "Erro ao editar.", "error");
-                
                 toast("Alteração salva.", "success");
                 closeModal();
                 await refreshTableUI();
             }
         );
     }
-    
+
     function openEditConta(catId, codigoAtual, nomeAtual) {
         showModal(
             "Editar Conta",
@@ -967,10 +965,10 @@
                 const codigo = document.getElementById('edit_conta_codigo').value.trim();
                 const nome = document.getElementById('edit_conta_nome').value.trim();
                 if (!codigo || !nome) return toast("Preencha código e nome.", "error");
-                
+
                 const res = await apiPost("{{ url_for('api.update_conta') }}", { cat_id: catId, codigo, nome });
                 if (res.status !== "ok") return toast(res.message || "Erro ao editar conta.", "error");
-                
+
                 toast("Conta atualizada com sucesso.", "success");
                 closeModal();
                 await refreshTableUI();
@@ -982,7 +980,6 @@
         confirmShow("Excluir esta categoria master? (precisa estar vazia)", async () => {
             const res = await apiPost("{{ url_for('api.delete_master') }}", { master_id: layoutId });
             if (res.status !== "ok") return toast(res.message || "Erro ao excluir categoria master.", "error");
-
             toast("Categoria master excluída.", "success");
             await refreshTableUI();
         });
@@ -992,7 +989,6 @@
         confirmShow("Excluir esta subcategoria? (precisa estar vazia)", async () => {
             const res = await apiPost("{{ url_for('api.delete_header') }}", { header_id: layoutId });
             if (res.status !== "ok") return toast(res.message || "Erro ao excluir subcategoria.", "error");
-
             toast("Subcategoria excluída.", "success");
             await refreshTableUI();
         });
@@ -1002,7 +998,6 @@
         confirmShow("Excluir esta conta? (não pode ter lançamentos)", async () => {
             const res = await apiPost("{{ url_for('api.delete_conta') }}", { layout_id: layoutId });
             if (res.status !== "ok") return toast(res.message || "Erro ao excluir conta.", "error");
-
             toast("Conta excluída.", "success");
             await refreshTableUI();
         });
@@ -1076,7 +1071,6 @@
 
         toast("Conta criada e posicionada com sucesso!", "success");
         closeAnyInlineEditor();
-        
         await refreshTableUI();
     }
 
@@ -1106,9 +1100,19 @@
 
         document.querySelectorAll('.money-mask').forEach(input => {
             let raw = input.dataset.rawValue;
-            if (raw && raw !== 'None') {
-                input.value = parseFloat(raw).toFixed(2).replace('.', '');
-                mascaraMoeda(input);
+
+            if (raw !== undefined && raw !== null && raw !== '' && raw !== 'None') {
+                const num = parseFloat(raw);
+
+                if (!isNaN(num) && num !== 0) {
+                    const abs = Math.abs(num).toFixed(2).replace('.', '');
+                    input.value = (num < 0 ? '-' : '') + abs;
+                    mascaraMoeda(input);
+                } else {
+                    input.value = '';
+                }
+            } else {
+                input.value = '';
             }
         });
 

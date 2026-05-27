@@ -107,7 +107,8 @@ function processDataTree(layout, lancamentos, mesFiltro) {
         let isSub = false;
         if (ref.master === 'grp_emprestimos' && ref.header !== 'emp_entrada') isSub = true;
         else if (ref.master === 'grp_financeiro' && ref.header !== 'fin_entrada') isSub = true;
-        else if (ref.master === 'grp_custos_var' && ref.header === 'rec_desp') isSub = true;
+        else if (ref.master === 'grp_custos_var' && ref.header === 'desp_var') isSub = true;
+        else if (ref.master === 'grp_custos_var' && ref.header === 'rec_desp') isSub = false;
         else if (regrasSubtracaoHeader.includes(ref.header)) isSub = true;
 
         // PASSO 1: Alimentar sempre o array Mensal (Para não quebrar a tendência visual dos Gráficos de Barra)
@@ -163,17 +164,14 @@ function renderKPIs(tree, lancamentos, mesFiltro) {
 
     let recLiq = tree.getM('grp_recebimentos'); 
 
-    let custosVarNet = tree.getM('grp_custos_var');
     let despVar = tree.masters['grp_custos_var']?.headers['desp_var']?.total || 0;
-    let custos = tree.masters['grp_custos_var']?.headers['custos']?.total || 0;
     let recDesp = tree.masters['grp_custos_var']?.headers['rec_desp']?.total || 0;
-    
-    let customCustosVar = custosVarNet - (despVar + custos - recDesp);
-    let totalDespVar = despVar + customCustosVar;
+    let custos = tree.getM('grp_csv');
+    let totalDespVar = despVar;
 
-    let rol = recLiq - totalDespVar + recDesp;
+    let rol = recLiq - despVar + recDesp;
     let mcb = rol - custos;
-    
+
     let desp = tree.getM('grp_desp_op');
     let fin = tree.getM('grp_financeiro'); 
     let imp = tree.getM('grp_impostos');
@@ -295,13 +293,11 @@ function renderWaterfall(tree) {
     let vDed = tree.masters['grp_recebimentos']?.headers['deducoes']?.total || 0;
     let vRec = vRecLiq + vDed; 
     
-    let custosVarNet = tree.getM('grp_custos_var');
     let despVar = tree.masters['grp_custos_var']?.headers['desp_var']?.total || 0;
-    let custos = tree.masters['grp_custos_var']?.headers['custos']?.total || 0;
     let recDesp = tree.masters['grp_custos_var']?.headers['rec_desp']?.total || 0;
-    let customCustosVar = custosVarNet - (despVar + custos - recDesp);
-    
-    let vDespVar = -(despVar + customCustosVar);
+    let custos = tree.getM('grp_csv');
+
+    let vDespVar = -despVar;
     let vRecDesp = recDesp;
     let vCus = -custos;
 
@@ -394,16 +390,13 @@ function renderInOutBars(tree, mesFiltro) {
         
         let cvGrp = tree.masters['grp_custos_var'];
         if(cvGrp) {
-            let cvNet = cvGrp.meses[m];
             let dVar = cvGrp.headers['desp_var']?.meses[m] || 0;
-            let cus = cvGrp.headers['custos']?.meses[m] || 0;
             let rDesp = cvGrp.headers['rec_desp']?.meses[m] || 0;
-            let cCustom = cvNet - (dVar + cus - rDesp);
-
-            saidas[m-1] += (dVar + cCustom); 
-            saidas[m-1] += cus;              
+            saidas[m-1] += dVar;
             entradas[m-1] += rDesp;
         }
+        let csvGrp = tree.masters['grp_csv'];
+        if(csvGrp) saidas[m-1] += csvGrp.meses[m];
 
         if(tree.masters['grp_desp_op']) saidas[m-1] += tree.masters['grp_desp_op'].meses[m];
         if(tree.masters['grp_impostos']) saidas[m-1] += tree.masters['grp_impostos'].meses[m];
@@ -493,14 +486,10 @@ function renderYoY(tree1, tree2, ano1, ano2, mesFiltro) {
         for (let m = 1; m <= 12; m++) {
             let recLiq = t.masters['grp_recebimentos'] ? t.masters['grp_recebimentos'].meses[m] : 0;
 
-            let cvGrp = t.masters['grp_custos_var'];
-            let cvNet = cvGrp ? cvGrp.meses[m] : 0;
-            let dVar = cvGrp?.headers['desp_var']?.meses[m] || 0;
-            let cus = cvGrp?.headers['custos']?.meses[m] || 0;
-            let rDesp = cvGrp?.headers['rec_desp']?.meses[m] || 0;
-            let cCustom = cvNet - (dVar + cus - rDesp);
+            let cvNet = t.masters['grp_custos_var'] ? t.masters['grp_custos_var'].meses[m] : 0;
+            let cus = t.masters['grp_csv']?.meses[m] || 0;
 
-            let rol = recLiq - (dVar + cCustom) + rDesp;
+            let rol = recLiq + cvNet;
             let mcb = rol - cus;
 
             let desp = t.masters['grp_desp_op'] ? t.masters['grp_desp_op'].meses[m] : 0;

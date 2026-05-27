@@ -1,0 +1,1155 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<style>
+    .text-red {
+        color: #d92d20 !important;
+    }
+    .cursor-pointer-hover {
+        cursor: cell;
+        transition: background-color 0.2s;
+    }
+    .cursor-pointer-hover:hover {
+        background-color: #e2e8f0;
+        border-radius: 4px;
+    }
+    
+    
+    .formula-target {
+        box-shadow: inset 0 0 0 2px #10b981 !important;
+        background-color: #ecfdf5 !important;
+        color: #047857 !important;
+        font-weight: 800 !important;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    .formula-sum {
+        box-shadow: inset 0 0 0 2px #3b82f6 !important;
+        background-color: #eff6ff !important;
+        color: #1d4ed8 !important;
+        font-weight: 700 !important;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    .formula-sub {
+        box-shadow: inset 0 0 0 2px #ef4444 !important;
+        background-color: #fef2f2 !important;
+        color: #b91c1c !important;
+        font-weight: 700 !important;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+</style>
+
+{% macro render_row(item, valor_existente, ano_atual) %}
+<tr class="row-conta hidden-row"
+    data-pai="{{ item.grupo_pai }}"
+    data-layout-id="{{ item.id }}"
+    data-cat-id="{{ item.categoria.id }}"
+    data-cat-codigo="{{ item.categoria.codigo|e }}"
+    data-cat-nome="{{ item.categoria.nome|e }}"
+    data-header-grupo="{{ item.grupo_calculo|e }}"
+    data-master-grupo="{{ item.grupo_pai|e }}">
+
+    <td class="td-code" style="width: 70px; text-align: center; background: #f9f9f9;">
+        <span class="cell-value">{{ item.categoria.codigo }}</span>
+    </td>
+
+    <td class="td-name" style="padding-left: 40px;">
+        <div class="cell-flex">
+            <span class="cell-title">{{ item.categoria.nome }}</span>
+
+            <div class="row-actions">
+                <button class="icon-btn edit-only" title="Editar conta"
+                        onclick="event.stopPropagation(); openEditConta({{ item.categoria.id }}, '{{ item.categoria.codigo|e }}', '{{ item.categoria.nome|e }}')">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                
+                <button class="icon-btn danger edit-only" title="Excluir conta"
+                        onclick="event.stopPropagation(); requestDeleteConta({{ item.id }})">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </td>
+
+    {% for mes in range(1, 13) %}
+    <td>
+        <input type="text"
+               inputmode="decimal"
+               class="cell-input money-mask"
+               data-cat-id="{{ item.categoria.id }}"
+               data-mes="{{ mes }}"
+               data-ano="{{ ano_atual }}"
+               data-group="{{ item.grupo_calculo }}"
+               data-master="{{ item.grupo_pai }}"
+               data-raw-value="{{ valor_existente.get(mes, '') }}"
+               value=""
+               onfocus="this.select()"
+               oninput="handleInput(this)"
+               onblur="saveData(this)">
+    </td>
+    {% endfor %}
+
+    <td class="text-right cell-total-ano cursor-pointer-hover" 
+        style="background-color:#f0f0f0; font-weight:600;"
+        onclick="toggleHighlight('conta', '{{ item.categoria.id }}', 'ano', event)" title="Ver contas somadas">0,00</td>
+</tr>
+{% endmacro %}
+
+
+<div class="table-wrapper">
+
+    <div class="table-topbar">
+        <div class="table-title-wrap">
+            <div class="table-title">DFC {{ ano }}</div>
+
+            <button id="btnToggleEdit" class="ghost-btn" type="button" onclick="toggleEditMode()">
+                <i class="fa-solid fa-pen"></i>
+                Editar Estrutura
+            </button>
+        </div>
+
+        <button class="primary-btn edit-only" onclick="openCreateMaster()">
+            <i class="fa-solid fa-plus"></i>
+            Nova Categoria Master
+        </button>
+    </div>
+
+    <table class="finance-table">
+        <thead>
+            <tr>
+                <th style="width: 70px;">Cód.</th>
+                <th style="min-width: 360px;">Descrição da Conta</th>
+                {% for mes in range(1, 13) %}
+                <th style="min-width: 100px;">{{ mes }}/{{ ano }}</th>
+                {% endfor %}
+                <th style="min-width: 120px;">Total Ano</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% set ns = namespace(receita_liq_rendered=false, rol_rendered=false, lucro_rendered=false) %}
+            {% for item in layout %}
+            
+                
+                {% if not ns.receita_liq_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_custos_var' %}
+                    <tr class="row-total-calc" id="total-receita_liquida" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                        <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
+                            (=) Receita Líquida
+                        </td>
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'receita_liquida', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da Receita Líquida">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-ano="true" onclick="toggleHighlight('total', 'receita_liquida', 'ano', event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da Receita Líquida">0,00</td>
+                    </tr>
+                    {% set ns.receita_liq_rendered = true %}
+                {% endif %}
+
+                
+                {% if not ns.rol_rendered and item.tipo_linha == 'header' and item.grupo_calculo == 'custos' %}
+                    <tr class="row-total-calc" id="total-rol" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                        <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
+                            (=) ROL - Receita Operacional Líquida
+                        </td>
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'rol', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da ROL">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-ano="true" onclick="toggleHighlight('total', 'rol', 'ano', event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da ROL">0,00</td>
+                    </tr>
+                    {% set ns.rol_rendered = true %}
+                {% endif %}
+
+                
+                {% if not ns.lucro_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_socios' %}
+                    <tr class="row-total-calc" id="total-lucro_liquido" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                        <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
+                            (=) Lucro Líquido
+                        </td>
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'lucro_liquido', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem do cálculo">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-ano="true" onclick="toggleHighlight('total', 'lucro_liquido', 'ano', event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem do cálculo">0,00</td>
+                    </tr>
+                    {% set ns.lucro_rendered = true %}
+                {% endif %}
+
+                {% if item.tipo_linha == 'master' %}
+                    <tr class="row-master"
+                        id="master-{{ item.grupo_calculo }}"
+                        data-layout-id="{{ item.id }}"
+                        onclick="toggleAccordion('{{ item.grupo_calculo }}')">
+
+                        <td colspan="2" style="padding-left: 10px;">
+                            <div class="cell-flex">
+                                <div class="cell-left">
+                                    <i class="fa-solid fa-chevron-right icon-chevron" id="icon-{{ item.grupo_calculo }}"></i>
+                                    <span class="cell-title">
+                                        {% if item.grupo_calculo == 'grp_recebimentos' and 'Líquida' in item.texto %}
+                                            1. RECEBIMENTOS
+                                        {% else %}
+                                            {{ item.texto }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+
+                                <div class="row-actions">
+                                    <button class="icon-btn inverse edit-only"
+                                            title="Adicionar subcategoria"
+                                            onclick="event.stopPropagation(); openCreateHeader('{{ item.grupo_calculo }}')">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+
+                                    <button class="icon-btn inverse edit-only"
+                                            title="Editar master"
+                                            onclick="event.stopPropagation(); openEditText({{ item.id }}, 'master', '{{ item.texto|e }}')">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+
+                                    <button class="icon-btn inverse edit-only"
+                                            style="color: #fca5a5; border-color: rgba(252, 165, 165, 0.3);"
+                                            title="Excluir master"
+                                            onclick="event.stopPropagation(); requestDeleteMaster({{ item.id }})">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-master-mes="{{ mes }}" onclick="toggleHighlight('master', '{{ item.grupo_calculo }}', {{ mes }}, event)" title="Ver origem da soma">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-master-ano="true" onclick="toggleHighlight('master', '{{ item.grupo_calculo }}', 'ano', event)" title="Ver origem da soma">0,00</td>
+                    </tr>
+
+                {% elif item.tipo_linha == 'header' %}
+                    <tr class="row-header hidden-row"
+                        data-pai="{{ item.grupo_pai }}"
+                        data-layout-id="{{ item.id }}"
+                        data-header-grupo="{{ item.grupo_calculo }}"
+                        id="header-{{ item.grupo_calculo }}">
+
+                        <td colspan="2" style="padding-left: 30px;">
+                            <div class="cell-flex">
+                                <div class="cell-left">
+                                    <span class="cell-title">
+                                        {% if item.texto == 'Pagamentos (Amortização + Juros)' %}
+                                            Empréstimos/Parcelamentos Impostos
+                                        {% else %}
+                                            {{ item.texto }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+
+                                <div class="row-actions">
+                                    <button class="icon-btn edit-only"
+                                            title="Adicionar conta aqui"
+                                            onclick="event.stopPropagation(); openInlineCreateConta(this)">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+
+                                    <button class="icon-btn edit-only"
+                                            title="Editar subcategoria"
+                                            onclick="event.stopPropagation(); openEditText({{ item.id }}, 'header', '{% if item.texto == 'Pagamentos (Amortização + Juros)' %}Empréstimos/Parcelamentos Impostos{% else %}{{ item.texto|e }}{% endif %}')">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+
+                                    <button class="icon-btn danger edit-only"
+                                            title="Excluir subcategoria"
+                                            onclick="event.stopPropagation(); requestDeleteHeader({{ item.id }})">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-subtotal-mes="{{ mes }}" onclick="toggleHighlight('header', '{{ item.grupo_calculo }}', {{ mes }}, event)" title="Ver contas somadas">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-subtotal-ano="true" onclick="toggleHighlight('header', '{{ item.grupo_calculo }}', 'ano', event)" title="Ver contas somadas">0,00</td>
+                    </tr>
+
+                {% elif item.tipo_linha == 'conta' %}
+                    {{ render_row(item, dados.get(item.categoria_id, {}), ano) }}
+
+                {% elif item.tipo_linha == 'total' %}
+                    <tr class="row-total-calc" id="total-{{ item.id_total }}">
+                        <td colspan="2" class="cell-total-title">
+                            {{ item.texto }}
+                        </td>
+                        {% for mes in range(1, 13) %}
+                            <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', '{{ item.id_total }}', {{ mes }}, event)" title="Ver origem do cálculo">0,00</td>
+                        {% endfor %}
+                        <td class="text-right cursor-pointer-hover" data-ano="true" onclick="toggleHighlight('total', '{{ item.id_total }}', 'ano', event)" title="Ver origem do cálculo">0,00</td>
+                    </tr>
+                {% endif %}
+
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+<div id="modalOverlay" class="modal-overlay hidden" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" id="modalTitle">Título</div>
+            <button class="icon-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+        <div class="modal-footer">
+            <button class="ghost-btn" onclick="closeModal()">Cancelar</button>
+            <button class="primary-btn" id="modalConfirmBtn" onclick="confirmModal()">Salvar</button>
+        </div>
+    </div>
+</div>
+<div id="confirmOverlay" class="confirm-overlay hidden" onclick="confirmCancel()">
+  <div class="confirm-dialog" onclick="event.stopPropagation()">
+      <div class="confirm-left">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span id="confirmText">Confirmar ação?</span>
+      </div>
+      <div class="confirm-actions">
+          <button class="ghost-btn small" onclick="confirmCancel()">Cancelar</button>
+          <button class="primary-btn small danger" onclick="confirmOk()">Confirmar</button>
+      </div>
+  </div>
+</div>
+<div id="toastHost" class="toast-host"></div>
+
+
+<script>
+    function toast(message, type = "info") {
+        const host = document.getElementById("toastHost");
+        const el = document.createElement("div");
+        el.className = `toast toast-${type}`;
+        el.innerHTML = `
+            <div class="toast-msg">${escapeHtml(message)}</div>
+            <button class="toast-x" aria-label="Fechar" onclick="this.parentElement.remove()"><i class="fa-solid fa-xmark"></i></button>
+        `;
+        host.appendChild(el);
+        setTimeout(() => { if (el && el.parentElement) el.remove(); }, 3200);
+    }
+
+    const confirmState = { action: null };
+    function confirmShow(text, actionFn) {
+        confirmState.action = actionFn;
+        document.getElementById("confirmText").innerText = text || "Confirmar ação?";
+        document.getElementById("confirmOverlay").classList.remove("hidden");
+    }
+    function confirmCancel() {
+        confirmState.action = null;
+        document.getElementById("confirmOverlay").classList.add("hidden");
+    }
+    async function confirmOk() {
+        const fn = confirmState.action;
+        confirmCancel();
+        if (typeof fn === "function") await fn();
+    }
+
+    function escapeHtml(str) {
+        return String(str || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    async function apiPost(url, data) {
+        const r = await fetch(url, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        });
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok) return { status: "error", message: json.message || "Erro na requisição." };
+        return json;
+    }
+
+   
+    let currentHighlight = { type: null, id: null, mes: null };
+
+    
+    const DFC_FORMULAS = {
+        'receita_liquida': { sum: ['master-grp_recebimentos'], sub: ['header-deducoes'] },
+        'rol': { sum: ['total-receita_liquida', 'header-rec_desp'], sub: ['header-desp_var'] },
+        'mcb': { sum: ['total-rol'], sub: ['header-custos'] },
+        'ebitda': { sum: ['total-mcb'], sub: ['master-grp_desp_op'] },
+        'lair': { sum: ['total-ebitda', 'master-grp_financeiro'], sub: [] },
+        'lucro_liquido': { sum: ['total-lair'], sub: ['master-grp_impostos'] },
+        'geracao_bruta': { sum: ['total-lucro_liquido'], sub: ['master-grp_socios'] },
+        'geracao_liquida': { sum: ['total-geracao_bruta'], sub: ['master-grp_capex'] },
+        'saldo_final': { sum: ['total-geracao_liquida', 'master-grp_emprestimos'], sub: [] }
+    };
+
+    function toggleHighlight(type, id, mes, event) {
+        event.stopPropagation(); 
+        
+        const isSame = (currentHighlight.type === type && currentHighlight.id === id && currentHighlight.mes === mes);
+
+        document.querySelectorAll('.formula-target, .formula-sum, .formula-sub').forEach(el => {
+            el.classList.remove('formula-target', 'formula-sum', 'formula-sub');
+        });
+
+        if (isSame) {
+            currentHighlight = { type: null, id: null, mes: null };
+            return;
+        }
+
+        currentHighlight = { type, id, mes };
+
+        const targetCell = getCellNode(type, id, mes);
+        if (targetCell) targetCell.classList.add('formula-target');
+
+        if (type === 'total') {
+            const formula = DFC_FORMULAS[id];
+            if (formula) {
+                formula.sum.forEach(prec => highlightPrecedent(prec, mes, 'formula-sum'));
+                formula.sub.forEach(prec => highlightPrecedent(prec, mes, 'formula-sub'));
+            }
+        } else if (type === 'master') {
+            document.querySelectorAll(`.row-header[data-pai="${id}"]`).forEach(row => {
+                const headerId = row.id.replace('header-', '');
+                
+                if (id === 'grp_recebimentos' && headerId === 'deducoes') return;
+
+                
+                let isSub = false;
+                if (id === 'grp_emprestimos' && headerId !== 'emp_entrada') isSub = true;
+                else if (id === 'grp_financeiro' && headerId !== 'fin_entrada') isSub = true;
+                else if (id === 'grp_custos_var' && headerId === 'rec_desp') isSub = true;
+                else if (['fin_saida', 'emp_saida', 'rec_desp'].includes(headerId)) isSub = true;
+
+                highlightPrecedent(`header-${headerId}`, mes, isSub ? 'formula-sub' : 'formula-sum');
+            });
+        } else if (type === 'header') {
+            if (mes === 'ano') {
+                document.querySelectorAll(`.row-conta[data-header-grupo="${id}"] .cell-total-ano`).forEach(cell => {
+                    cell.classList.add('formula-sum');
+                });
+            } else {
+                document.querySelectorAll(`.cell-input[data-group="${id}"][data-mes="${mes}"]`).forEach(inp => {
+                    inp.classList.add('formula-sum');
+                });
+            }
+            const rowHeader = document.getElementById(`header-${id}`);
+            if (rowHeader) {
+                const mId = rowHeader.getAttribute('data-pai');
+                const icon = document.getElementById(`icon-${mId}`);
+                if (icon && !icon.classList.contains('open')) toggleAccordion(mId);
+            }
+        } else if (type === 'conta') {
+            if (mes === 'ano') {
+                document.querySelectorAll(`.cell-input[data-cat-id="${id}"]`).forEach(inp => {
+                    inp.classList.add('formula-sum');
+                });
+            }
+        }
+    }
+
+    function getCellNode(type, id, mes) {
+        let selector = '';
+        if (type === 'total') {
+            selector = mes === 'ano' ? `#total-${id} [data-ano="true"]` : `#total-${id} [data-mes="${mes}"]`;
+        } else if (type === 'master') {
+            selector = mes === 'ano' ? `#master-${id} [data-master-ano="true"]` : `#master-${id} [data-master-mes="${mes}"]`;
+        } else if (type === 'header') {
+            selector = mes === 'ano' ? `#header-${id} [data-subtotal-ano="true"]` : `#header-${id} [data-subtotal-mes="${mes}"]`;
+        } else if (type === 'conta') {
+            selector = `.row-conta[data-cat-id="${id}"] .cell-total-ano`;
+        }
+        return document.querySelector(selector);
+    }
+
+    function highlightPrecedent(precId, mes, className) {
+        const parts = precId.split('-');
+        const type = parts[0]; 
+        const id = parts.slice(1).join('-');
+        
+        const cell = getCellNode(type, id, mes);
+        
+        if (cell) {
+            cell.classList.add(className);
+            
+            if (type === 'header') {
+                const row = document.getElementById(`header-${id}`);
+                if (row) {
+                    const mId = row.getAttribute('data-pai');
+                    const icon = document.getElementById(`icon-${mId}`);
+                    if (icon && !icon.classList.contains('open')) toggleAccordion(mId);
+                }
+            }
+        }
+    }
+
+    async function refreshTableUI() {
+        try {
+            const url = new URL(window.location.href, window.location.origin);
+            url.searchParams.set('_t', Date.now());
+            
+            const res = await fetch(url.toString(), { cache: 'no-store' });
+            const htmlText = await res.text();
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlText, 'text/html');
+            const newTbody = doc.querySelector('.finance-table tbody');
+            
+            if (newTbody) {
+                document.querySelector('.finance-table tbody').innerHTML = newTbody.innerHTML;
+                
+                document.querySelectorAll('.money-mask').forEach(input => {
+                    let raw = input.dataset.rawValue;
+                    if (raw !== undefined && raw !== null && raw !== '' && raw !== 'None') {
+                        const num = parseFloat(raw);
+                        if (!isNaN(num)) {
+                            const abs = Math.abs(num).toFixed(2).replace('.', '');
+                            input.value = (num < 0 ? '-' : '') + abs;
+                            mascaraMoeda(input);
+                        }
+                    }
+                });
+                
+                currentHighlight = { type: null, id: null, mes: null };
+                restoreAccordions();
+                recalculateTotals();
+            }
+        } catch (error) {
+            location.reload(); 
+        }
+    }
+
+    const ACC_KEY = "dfc_open_masters_v1";
+
+    function getOpenMasters(){
+        try { return JSON.parse(localStorage.getItem(ACC_KEY) || "[]"); }
+        catch { return []; }
+    }
+    function setOpenMasters(arr){
+        localStorage.setItem(ACC_KEY, JSON.stringify(arr));
+    }
+    function markMasterState(masterGroup, isOpen){
+        const open = new Set(getOpenMasters());
+        if (isOpen) open.add(masterGroup);
+        else open.delete(masterGroup);
+        setOpenMasters(Array.from(open));
+    }
+
+    function restoreAccordions(){
+        const open = new Set(getOpenMasters());
+        open.forEach(group => {
+            const children = document.querySelectorAll(`tr[data-pai="${group}"]`);
+            if (!children.length) return;
+
+            children.forEach(r => r.classList.remove("hidden-row"));
+            const icon = document.getElementById(`icon-${group}`);
+            if (icon) icon.classList.add("open");
+        });
+    }
+
+    function toggleAccordion(masterGroup) {
+        const children = document.querySelectorAll(`tr[data-pai="${masterGroup}"]`);
+        const icon = document.getElementById(`icon-${masterGroup}`);
+
+        let isOpening = true;
+        if (children.length > 0 && !children[0].classList.contains('hidden-row')) isOpening = false;
+
+        children.forEach(row => row.classList.toggle('hidden-row', !isOpening));
+        if (icon) icon.classList.toggle('open', isOpening);
+
+        markMasterState(masterGroup, isOpening);
+    }
+
+    let debounceTimer;
+    
+    
+    const gruposRed = [
+        'deducoes','desp_var','custos','folha','outras_pessoal','estrutura',
+        'veiculos','terceiros','consumo','informatica','marketing','comunicacao',
+        'outras_desp','bancarias','fin_saida','impostos','socios','capex','emp_saida'
+    ];
+
+    function handleInput(input) {
+        mascaraMoeda(input);
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => { recalculateTotals(); }, 250);
+    }
+
+    function mascaraMoeda(input) {
+        let raw = (input.value || '').trim();
+
+        const isNegative = raw.startsWith('-');
+        let digits = raw.replace(/\D/g, '');
+
+        if (digits === '') {
+            input.value = isNegative ? '-' : '';
+            return;
+        }
+
+        let value = (parseFloat(digits) / 100).toFixed(2);
+        let [inteira, decimal] = value.split('.');
+
+        inteira = inteira.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+        input.value = `${isNegative ? '-' : ''}${inteira},${decimal}`;
+    }
+
+    function parseBRL(str) {
+        if (!str) return 0;
+        if (typeof str === 'number') return str;
+
+        let s = String(str).trim();
+        const isNegative = s.startsWith('-');
+
+        s = s.replace('-', '').replace(/\./g, '').replace(',', '.');
+
+        const num = parseFloat(s) || 0;
+        return isNegative ? -num : num;
+    }
+
+    function formatBRL(num) {
+        return num.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function recalculateTotals() {
+        const subgrupos = {};
+        const masters = {};
+
+        const inputs = document.getElementsByClassName('money-mask');
+        for (let inp of inputs) {
+            let val = parseBRL(inp.value);
+            let mes = parseInt(inp.dataset.mes);
+            let grp = inp.dataset.group;
+            let masterGrp = inp.dataset.master;
+
+            
+            let isSub = false;
+            if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
+            else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
+            else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = false;
+
+            let isRedGrp = gruposRed.includes(grp);
+            if (['grp_custos_var', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
+                if (grp !== 'rec_desp') isRedGrp = true;
+            }
+            if (masterGrp === 'grp_financeiro' && isSub) isRedGrp = true;
+            if (masterGrp === 'grp_emprestimos' && isSub) isRedGrp = true;
+            
+            let headerRow = document.getElementById(`header-${grp}`);
+            let headerText = headerRow ? headerRow.querySelector('.cell-title').innerText.toLowerCase() : '';
+            if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) isRedGrp = true;
+
+            if (!subgrupos[grp]) subgrupos[grp] = new Float64Array(13);
+            subgrupos[grp][mes] += val;
+
+            if (val < 0 || (isRedGrp && val > 0)) inp.classList.add('text-red');
+            else inp.classList.remove('text-red');
+        }
+
+        document.querySelectorAll('.row-conta').forEach(row => {
+            let totalRow = 0;
+            let inputsRow = row.getElementsByTagName('input');
+            let isRed = false;
+
+            for (let inp of inputsRow) {
+                totalRow += parseBRL(inp.value);
+                if (inp.classList.contains('text-red')) isRed = true;
+            }
+
+            let cellTotal = row.lastElementChild;
+            cellTotal.innerText = formatBRL(totalRow);
+
+            if (totalRow < 0 || (isRed && totalRow > 0)) cellTotal.classList.add('text-red');
+            else cellTotal.classList.remove('text-red');
+        });
+
+        document.querySelectorAll('.row-master').forEach(row => {
+            let id = row.id.replace('master-', '');
+            if (!masters[id]) masters[id] = new Float64Array(13);
+        });
+
+        for (const grp in subgrupos) {
+            let headerRow = document.getElementById(`header-${grp}`);
+            if (headerRow) {
+                let masterGrp = headerRow.dataset.pai;
+                if (!masters[masterGrp]) masters[masterGrp] = new Float64Array(13);
+
+                let somaHeader = 0;
+                let vals = subgrupos[grp];
+                let headerText = headerRow.querySelector('.cell-title').innerText.toLowerCase();
+
+                
+                let isSub = false;
+                if (masterGrp === 'grp_emprestimos' && grp !== 'emp_entrada') isSub = true;
+                else if (masterGrp === 'grp_financeiro' && grp !== 'fin_entrada') isSub = true;
+                else if (masterGrp === 'grp_custos_var' && grp === 'rec_desp') isSub = true;
+
+                let isRedGrp = gruposRed.includes(grp);
+                if (['grp_custos_var', 'grp_desp_op', 'grp_impostos', 'grp_socios', 'grp_capex'].includes(masterGrp)) {
+                    if (grp !== 'rec_desp') isRedGrp = true;
+                }
+                if (masterGrp === 'grp_financeiro' && isSub) isRedGrp = true;
+                if (masterGrp === 'grp_emprestimos' && isSub) isRedGrp = true;
+                if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) isRedGrp = true;
+
+                for (let m = 1; m <= 12; m++) {
+                    let val = vals[m];
+                    let cell = headerRow.querySelector(`[data-subtotal-mes="${m}"]`);
+                    if (cell) {
+                        cell.innerText = formatBRL(val);
+                        cell.classList.toggle('text-red', val < 0 || (isRedGrp && val > 0));
+                    }
+                    somaHeader += val;
+
+                    
+                    if (masterGrp === 'grp_recebimentos' && (grp === 'deducoes' || headerText.includes('deduç'))) {
+                        masters[masterGrp][m] -= val;
+                    } else if (masterGrp === 'grp_recebimentos') {
+                        masters[masterGrp][m] += val;
+                    } else if (isSub) {
+                        masters[masterGrp][m] -= val;
+                    } else {
+                        masters[masterGrp][m] += val;
+                    }
+                }
+
+                let cellTotal = headerRow.querySelector(`[data-subtotal-ano="true"]`);
+                if (cellTotal) {
+                    cellTotal.innerText = formatBRL(somaHeader);
+                    cellTotal.classList.toggle('text-red', somaHeader < 0 || (isRedGrp && somaHeader > 0));
+                }
+            }
+        }
+
+        for (const mGrp in masters) {
+            let masterRow = document.getElementById(`master-${mGrp}`);
+            if (masterRow) {
+                let vals = masters[mGrp];
+                let somaMaster = 0;
+
+                for (let m = 1; m <= 12; m++) {
+                    let val = vals[m];
+                    let cell = masterRow.querySelector(`[data-master-mes="${m}"]`);
+                    if (cell) {
+                        cell.innerText = formatBRL(val);
+                        cell.classList.toggle('text-red', val < 0);
+                    }
+                    somaMaster += val;
+                }
+
+                const totalCell = masterRow.querySelector(`[data-master-ano="true"]`);
+                if (totalCell) {
+                    totalCell.innerText = formatBRL(somaMaster);
+                    totalCell.classList.toggle('text-red', somaMaster < 0);
+                }
+            }
+        }
+
+        const GetM = (k, m) => masters[k] ? masters[k][m] : 0;
+        
+        let sumsAnuais = {
+            receita_liquida: 0, rol: 0, mcb: 0, ebitda: 0, lair: 0, lucro_liquido: 0,
+            geracao_bruta: 0, geracao_liquida: 0, saldo_final: 0
+        };
+
+        for (let m = 1; m <= 12; m++) {
+            
+            
+            let recLiq = GetM('grp_recebimentos', m);
+            updateTotal('receita_liquida', m, recLiq);
+            sumsAnuais.receita_liquida += recLiq;
+
+            
+            let custosVarNet = GetM('grp_custos_var', m);
+            let despVar = subgrupos['desp_var'] ? subgrupos['desp_var'][m] : 0;
+            let recDesp = subgrupos['rec_desp'] ? subgrupos['rec_desp'][m] : 0;
+            let custos = subgrupos['custos'] ? subgrupos['custos'][m] : 0;
+            
+            
+            let customCustosVar = custosVarNet - (despVar + custos - recDesp);
+            let totalDespVar = despVar + customCustosVar; 
+
+            let rol = recLiq - totalDespVar + recDesp;
+            updateTotal('rol', m, rol);
+            sumsAnuais.rol += rol;
+
+            
+            let mcb = rol - custos;
+            updateTotal('mcb', m, mcb);
+            sumsAnuais.mcb += mcb;
+
+            
+            let ebitda = mcb - GetM('grp_desp_op', m);
+            updateTotal('ebitda', m, ebitda);
+            sumsAnuais.ebitda += ebitda;
+
+           
+            let lair = ebitda + GetM('grp_financeiro', m);
+            updateTotal('lair', m, lair);
+            sumsAnuais.lair += lair;
+
+            
+            let lucro = lair - GetM('grp_impostos', m);
+            updateTotal('lucro_liquido', m, lucro);
+            sumsAnuais.lucro_liquido += lucro;
+
+            
+            let gBruta = lucro - GetM('grp_socios', m);
+            updateTotal('geracao_bruta', m, gBruta);
+            sumsAnuais.geracao_bruta += gBruta;
+
+            
+            let gLiq = gBruta - GetM('grp_capex', m);
+            updateTotal('geracao_liquida', m, gLiq);
+            sumsAnuais.geracao_liquida += gLiq;
+
+           
+            let final = gLiq + GetM('grp_emprestimos', m);
+            updateTotal('saldo_final', m, final);
+            sumsAnuais.saldo_final += final;
+        }
+        
+        
+        for (const [key, value] of Object.entries(sumsAnuais)) {
+            let el = document.querySelector(`#total-${key} [data-ano="true"]`);
+            if (el) {
+                el.innerText = formatBRL(value);
+                el.classList.toggle('text-red', value < 0);
+            }
+        }
+    }
+
+    function updateTotal(id, mes, valor) {
+        let el = document.querySelector(`#total-${id} [data-mes="${mes}"]`);
+        if (el) {
+            el.innerText = formatBRL(valor);
+            el.classList.toggle('text-red', valor < 0);
+        }
+    }
+
+    function saveData(input) {
+        let val = parseBRL(input.value);
+        let data = { categoria_id: input.dataset.catId, mes: input.dataset.mes, ano: input.dataset.ano, valor: val };
+
+        fetch("{{ url_for('api.atualizar') }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        }).catch(() => toast("Falha ao salvar.", "error"));
+    }
+
+
+    document.addEventListener('keydown', function(e) {
+        if (!e.target.classList.contains('cell-input')) return;
+
+        const currentInput = e.target;
+        
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+            
+            const currentRow = currentInput.closest('tr.row-conta');
+            const visibleRows = Array.from(document.querySelectorAll('tr.row-conta:not(.hidden-row)'));
+            const rowIndex = visibleRows.indexOf(currentRow);
+            
+            const rowInputs = Array.from(currentRow.querySelectorAll('.cell-input'));
+            const colIndex = rowInputs.indexOf(currentInput);
+
+            let targetInput = null;
+
+            if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) {
+                if (rowIndex < visibleRows.length - 1) {
+                    targetInput = visibleRows[rowIndex + 1].querySelectorAll('.cell-input')[colIndex];
+                    e.preventDefault();
+                }
+            } else if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) {
+                if (rowIndex > 0) {
+                    targetInput = visibleRows[rowIndex - 1].querySelectorAll('.cell-input')[colIndex];
+                    e.preventDefault();
+                }
+            } else if (e.key === 'ArrowRight') {
+                if (currentInput.selectionStart === currentInput.value.length || (currentInput.selectionStart === 0 && currentInput.selectionEnd === currentInput.value.length)) {
+                    if (colIndex < rowInputs.length - 1) {
+                        targetInput = rowInputs[colIndex + 1];
+                        e.preventDefault();
+                    }
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (currentInput.selectionEnd === 0 || (currentInput.selectionStart === 0 && currentInput.selectionEnd === currentInput.value.length)) {
+                    if (colIndex > 0) {
+                        targetInput = rowInputs[colIndex - 1];
+                        e.preventDefault();
+                    }
+                }
+            }
+
+            if (targetInput) {
+                targetInput.focus();
+            }
+        }
+    });
+
+
+    const modal = { action: null };
+
+    function showModal(title, bodyHtml, confirmLabel, actionFn) {
+        modal.action = actionFn;
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalBody').innerHTML = bodyHtml;
+        document.getElementById('modalConfirmBtn').innerText = confirmLabel || 'Salvar';
+        document.getElementById('modalOverlay').classList.remove('hidden');
+
+        setTimeout(() => {
+            const first = document.querySelector('#modalBody input, #modalBody select');
+            if (first) first.focus();
+        }, 30);
+    }
+
+    function closeModal(ev) {
+        if (ev && ev.target && ev.target.id !== 'modalOverlay') return;
+        document.getElementById('modalOverlay').classList.add('hidden');
+        modal.action = null;
+    }
+
+    function confirmModal() {
+        if (typeof modal.action === 'function') modal.action();
+    }
+
+    function openCreateMaster() {
+        showModal(
+            "Nova Categoria Master",
+            `
+            <div class="form-grid">
+                <label>Texto</label>
+                <input id="m_texto" type="text" placeholder="Ex: 1. RECEBIMENTOS (Receita Líquida)" />
+            </div>
+            `,
+            "Criar",
+            async () => {
+                const texto = document.getElementById('m_texto').value.trim();
+                const res = await apiPost("{{ url_for('api.create_master') }}", { texto });
+                if (res.status !== "ok") return toast(res.message || "Erro ao criar master.", "error");
+                
+                toast("Master criada com sucesso.", "success");
+                closeModal();
+                await refreshTableUI();
+            }
+        );
+    }
+
+    function openCreateHeader(masterGrupo) {
+        showModal(
+            "Nova Subcategoria (Header)",
+            `
+            <div class="form-grid">
+                <label>Texto</label>
+                <input id="h_texto" type="text" placeholder="Ex: Receitas Diretas" />
+            </div>
+            `,
+            "Criar",
+            async () => {
+                const texto = document.getElementById('h_texto').value.trim();
+                const res = await apiPost("{{ url_for('api.create_header') }}", {
+                    master_grupo: masterGrupo, texto
+                });
+                if (res.status !== "ok") return toast(res.message || "Erro ao criar header.", "error");
+                
+                toast("Subcategoria criada.", "success");
+                closeModal();
+                
+                markMasterState(masterGrupo, true);
+                
+                await refreshTableUI();
+            }
+        );
+    }
+
+    function openEditText(layoutId, tipo, textoAtual) {
+        showModal(
+            `Editar ${tipo === 'master' ? 'Master' : 'Header'}`,
+            `
+            <div class="form-grid">
+                <label>Texto</label>
+                <input id="t_texto" type="text" value="${escapeHtml(textoAtual)}" />
+            </div>
+            `,
+            "Salvar",
+            async () => {
+                const texto = document.getElementById('t_texto').value.trim();
+                const res = await apiPost("{{ url_for('api.update_text') }}", { layout_id: layoutId, texto });
+                if (res.status !== "ok") return toast(res.message || "Erro ao editar.", "error");
+                
+                toast("Alteração salva.", "success");
+                closeModal();
+                await refreshTableUI();
+            }
+        );
+    }
+    
+    function openEditConta(catId, codigoAtual, nomeAtual) {
+        showModal(
+            "Editar Conta",
+            `
+            <div class="form-grid">
+                <label>Código</label>
+                <input id="edit_conta_codigo" type="text" value="${escapeHtml(codigoAtual)}" />
+                <label style="margin-top: 10px;">Nome da Conta</label>
+                <input id="edit_conta_nome" type="text" value="${escapeHtml(nomeAtual)}" />
+            </div>
+            `,
+            "Salvar",
+            async () => {
+                const codigo = document.getElementById('edit_conta_codigo').value.trim();
+                const nome = document.getElementById('edit_conta_nome').value.trim();
+                if (!codigo || !nome) return toast("Preencha código e nome.", "error");
+                
+                const res = await apiPost("{{ url_for('api.update_conta') }}", { cat_id: catId, codigo, nome });
+                if (res.status !== "ok") return toast(res.message || "Erro ao editar conta.", "error");
+                
+                toast("Conta atualizada com sucesso.", "success");
+                closeModal();
+                await refreshTableUI();
+            }
+        );
+    }
+
+    function requestDeleteMaster(layoutId) {
+        confirmShow("Excluir esta categoria master? (precisa estar vazia)", async () => {
+            const res = await apiPost("{{ url_for('api.delete_master') }}", { master_id: layoutId });
+            if (res.status !== "ok") return toast(res.message || "Erro ao excluir categoria master.", "error");
+
+            toast("Categoria master excluída.", "success");
+            await refreshTableUI();
+        });
+    }
+
+    function requestDeleteHeader(layoutId) {
+        confirmShow("Excluir esta subcategoria? (precisa estar vazia)", async () => {
+            const res = await apiPost("{{ url_for('api.delete_header') }}", { header_id: layoutId });
+            if (res.status !== "ok") return toast(res.message || "Erro ao excluir subcategoria.", "error");
+
+            toast("Subcategoria excluída.", "success");
+            await refreshTableUI();
+        });
+    }
+
+    function requestDeleteConta(layoutId) {
+        confirmShow("Excluir esta conta? (não pode ter lançamentos)", async () => {
+            const res = await apiPost("{{ url_for('api.delete_conta') }}", { layout_id: layoutId });
+            if (res.status !== "ok") return toast(res.message || "Erro ao excluir conta.", "error");
+
+            toast("Conta excluída.", "success");
+            await refreshTableUI();
+        });
+    }
+
+    function closeAnyInlineEditor() {
+        document.querySelectorAll('tr.inline-editor-row').forEach(tr => tr.remove());
+    }
+
+    function openInlineCreateConta(btnEl) {
+        closeAnyInlineEditor();
+
+        const headerRow = btnEl.closest('tr.row-header');
+        if (!headerRow) return;
+
+        const headerLayoutId = headerRow.getAttribute('data-layout-id');
+
+        const tr = document.createElement('tr');
+        tr.className = 'inline-editor-row';
+
+        tr.innerHTML = `
+            <td class="td-code">
+                <input class="inline-input full-input" id="in_codigo" type="text" placeholder="Código" style="width: 100%" />
+            </td>
+
+            <td class="td-name">
+                <div style="display: flex; gap: 8px; align-items: center; padding: 4px;">
+                    <input class="inline-input full-input" id="in_nome" type="text" placeholder="Descrição da conta" style="flex: 1;" />
+                    <button class="primary-btn small" title="Salvar (Enter)" onclick="saveInlineCreateConta(${headerLayoutId})">
+                        <i class="fa-solid fa-check"></i> Salvar
+                    </button>
+                    <button class="ghost-btn small" title="Cancelar (Esc)" onclick="closeAnyInlineEditor()">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </td>
+
+            <td class="inline-filler" colspan="13" style="background: #f1f5f9;"></td>
+        `;
+
+        headerRow.insertAdjacentElement('afterend', tr);
+        setTimeout(() => document.getElementById('in_codigo')?.focus(), 0);
+
+        tr.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeAnyInlineEditor();
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveInlineCreateConta(headerLayoutId);
+                return;
+            }
+        });
+    }
+
+    async function saveInlineCreateConta(headerLayoutId) {
+        const codigo = (document.getElementById('in_codigo')?.value || '').trim();
+        const nome = (document.getElementById('in_nome')?.value || '').trim();
+
+        if (!codigo || !nome) return toast("Informe código e descrição.", "error");
+
+        const res = await apiPost("{{ url_for('api.create_conta') }}", {
+            header_layout_id: headerLayoutId,
+            codigo,
+            nome
+        });
+
+        if (res.status !== "ok") return toast(res.message || "Erro ao criar conta.", "error");
+
+        toast("Conta criada e posicionada com sucesso!", "success");
+        closeAnyInlineEditor();
+        
+        await refreshTableUI();
+    }
+
+    let EDIT_MODE = false;
+
+    function setEditMode(isEdit) {
+        EDIT_MODE = !!isEdit;
+        document.body.classList.toggle("is-edit-mode", EDIT_MODE);
+
+        const btn = document.getElementById("btnToggleEdit");
+        if (btn) {
+            btn.innerHTML = EDIT_MODE
+                ? `<i class="fa-solid fa-check"></i> Concluir Edição`
+                : `<i class="fa-solid fa-pen"></i> Editar Estrutura`;
+        }
+
+        localStorage.setItem("dfc_edit_mode_only_buttons", EDIT_MODE ? "1" : "0");
+    }
+
+    function toggleEditMode() {
+        setEditMode(!EDIT_MODE);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedEdit = localStorage.getItem("dfc_edit_mode_only_buttons") === "1";
+        setEditMode(savedEdit);
+
+        document.querySelectorAll('.money-mask').forEach(input => {
+            let raw = input.dataset.rawValue;
+
+            if (raw !== undefined && raw !== null && raw !== '' && raw !== 'None') {
+                const num = parseFloat(raw);
+
+                if (!isNaN(num)) {
+                    const abs = Math.abs(num).toFixed(2).replace('.', '');
+                    input.value = (num < 0 ? '-' : '') + abs;
+                    mascaraMoeda(input);
+                }
+            }
+        });
+
+        restoreAccordions();
+        recalculateTotals();
+    });
+</script>
+
+{% endblock %}
