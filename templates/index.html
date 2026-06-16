@@ -38,6 +38,15 @@
         border-radius: 4px;
         transition: all 0.2s ease;
     }
+    .result-title-flex {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .result-color-btn {
+        padding: 3px 7px !important;
+        font-size: 12px;
+    }
 </style>
 
 {% macro render_row(item, valor_existente, ano_atual) %}
@@ -134,7 +143,9 @@
                 {% if not ns.receita_liq_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_custos_var' %}
                     <tr class="row-total-calc" id="total-receita_liquida" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
-                            (=) Receita Líquida
+                            <span class="result-title-flex">(=) Receita Líquida
+                                <button class="icon-btn edit-only result-color-btn" title="Alterar cor da linha" onclick="event.stopPropagation(); openColorEditor('total-receita_liquida')"><i class="fa-solid fa-palette"></i></button>
+                            </span>
                         </td>
                         {% for mes in range(1, 13) %}
                             <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'receita_liquida', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da Receita Líquida">0,00</td>
@@ -147,7 +158,9 @@
                 {% if not ns.rol_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_csv' %}
                     <tr class="row-total-calc" id="total-rol" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
-                            (=) ROL - Receita Operacional Líquida
+                            <span class="result-title-flex">(=) ROL - Receita Operacional Líquida
+                                <button class="icon-btn edit-only result-color-btn" title="Alterar cor da linha" onclick="event.stopPropagation(); openColorEditor('total-rol')"><i class="fa-solid fa-palette"></i></button>
+                            </span>
                         </td>
                         {% for mes in range(1, 13) %}
                             <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'rol', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem da ROL">0,00</td>
@@ -160,7 +173,9 @@
                 {% if not ns.lucro_rendered and item.tipo_linha == 'master' and item.grupo_calculo == 'grp_socios' %}
                     <tr class="row-total-calc" id="total-lucro_liquido" style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
                         <td colspan="2" class="cell-total-title" style="font-weight: 800; color: #0f2f4a; padding-left: 10px;">
-                            (=) Lucro Líquido
+                            <span class="result-title-flex">(=) Lucro Líquido
+                                <button class="icon-btn edit-only result-color-btn" title="Alterar cor da linha" onclick="event.stopPropagation(); openColorEditor('total-lucro_liquido')"><i class="fa-solid fa-palette"></i></button>
+                            </span>
                         </td>
                         {% for mes in range(1, 13) %}
                             <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', 'lucro_liquido', {{ mes }}, event)" style="font-weight: 800; color: #0f2f4a;" title="Ver origem do cálculo">0,00</td>
@@ -271,7 +286,9 @@
                 {% elif item.tipo_linha == 'total' %}
                     <tr class="row-total-calc" id="total-{{ item.id_total }}">
                         <td colspan="2" class="cell-total-title">
-                            {{ item.texto }}
+                            <span class="result-title-flex">{{ item.texto }}
+                                <button class="icon-btn edit-only result-color-btn" title="Alterar cor da linha" onclick="event.stopPropagation(); openColorEditor('total-{{ item.id_total }}')"><i class="fa-solid fa-palette"></i></button>
+                            </span>
                         </td>
                         {% for mes in range(1, 13) %}
                             <td class="text-right cursor-pointer-hover" data-mes="{{ mes }}" onclick="toggleHighlight('total', '{{ item.id_total }}', {{ mes }}, event)" title="Ver origem do cálculo">0,00</td>
@@ -1094,6 +1111,92 @@
         setEditMode(!EDIT_MODE);
     }
 
+    // ===== Cores das linhas de resultado =====
+    const RESULT_ROW_IDS = [
+        'total-receita_liquida', 'total-rol', 'total-mcb', 'total-ebitda',
+        'total-lair', 'total-lucro_liquido', 'total-geracao_bruta',
+        'total-geracao_liquida', 'total-saldo_final'
+    ];
+    const DEFAULT_RESULT_BG = '#f8fafc';
+
+    // Config compartilhada (vinda do banco). Estrutura: { all: '#hex', overrides: { 'total-xxx': '#hex' } }
+    let resultColorConfig = {{ result_colors|tojson }} || {};
+
+    async function persistResultColorConfig() {
+        const res = await apiPost("{{ url_for('api.save_result_colors') }}", { config: resultColorConfig });
+        if (!res || res.status !== "ok") {
+            toast("Falha ao salvar a cor no servidor.", "error");
+            return false;
+        }
+        return true;
+    }
+
+    function pickTextColor(bg) {
+        const c = bg.replace('#', '');
+        const r = parseInt(c.substr(0, 2), 16);
+        const g = parseInt(c.substr(2, 2), 16);
+        const b = parseInt(c.substr(4, 2), 16);
+        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return lum > 0.6 ? '#0f2f4a' : '#ffffff';
+    }
+
+    function applyResultColor(rowId, bg) {
+        const tr = document.getElementById(rowId);
+        if (!tr) return;
+        tr.style.backgroundColor = bg;
+        const txt = pickTextColor(bg);
+        // text-red (negativos) usa !important e continua vermelho; positivos seguem o contraste
+        tr.querySelectorAll('td').forEach(td => { td.style.color = txt; });
+    }
+
+    function applyAllResultColors() {
+        const cfg = resultColorConfig || {};
+        const overrides = cfg.overrides || {};
+        RESULT_ROW_IDS.forEach(id => {
+            const c = overrides[id] || cfg.all;
+            if (c) applyResultColor(id, c);
+        });
+    }
+
+    function getCurrentResultColor(rowId) {
+        const cfg = resultColorConfig || {};
+        return (cfg.overrides && cfg.overrides[rowId]) || cfg.all || DEFAULT_RESULT_BG;
+    }
+
+    function openColorEditor(rowId) {
+        const current = getCurrentResultColor(rowId);
+        showModal(
+            "Cor da Linha de Resultado",
+            `
+            <div class="form-grid">
+                <label>Cor de fundo</label>
+                <input id="result_color" type="color" value="${current}" style="width:100%; height:44px; padding:2px; cursor:pointer; border:1px solid #d0d5dd; border-radius:8px;" />
+                <label style="margin-top:14px; display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600;">
+                    <input id="result_color_only_this" type="checkbox" style="width:auto;" />
+                    Aplicar apenas a esta linha
+                </label>
+                <small style="color:#64748b;">Desmarcado: altera <b>todas</b> as linhas de resultado. Marcado: altera <b>apenas esta</b>.</small>
+            </div>
+            `,
+            "Aplicar",
+            async () => {
+                const color = document.getElementById('result_color').value;
+                const onlyThis = document.getElementById('result_color_only_this').checked;
+                if (onlyThis) {
+                    resultColorConfig.overrides = resultColorConfig.overrides || {};
+                    resultColorConfig.overrides[rowId] = color;
+                } else {
+                    resultColorConfig.all = color;
+                    resultColorConfig.overrides = {}; // editar um, edita todos
+                }
+                applyAllResultColors();
+                closeModal();
+                const ok = await persistResultColorConfig();
+                if (ok) toast("Cor aplicada para todos os usuários.", "success");
+            }
+        );
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         const savedEdit = localStorage.getItem("dfc_edit_mode_only_buttons") === "1";
         setEditMode(savedEdit);
@@ -1118,6 +1221,7 @@
 
         restoreAccordions();
         recalculateTotals();
+        applyAllResultColors();
     });
 </script>
 

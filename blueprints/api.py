@@ -1,10 +1,13 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from models import Lancamento, LayoutDFC, Categoria
+from models import Lancamento, LayoutDFC, Categoria, Setting
 from flask_login import login_required
 from sqlalchemy import func
 from unidecode import unidecode
+import json
 import re
+
+RESULT_COLORS_KEY = 'result_colors'
 
 bp_api = Blueprint('api', __name__, url_prefix='/api')
 
@@ -222,6 +225,29 @@ def update_conta():
 
     cat.codigo = codigo
     cat.nome = nome
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
+
+@bp_api.route('/settings/result_colors', methods=['GET'])
+@login_required
+def get_result_colors():
+    s = Setting.query.filter_by(chave=RESULT_COLORS_KEY).first()
+    config = json.loads(s.valor) if s and s.valor else {}
+    return jsonify({"status": "ok", "config": config})
+
+
+@bp_api.route('/settings/result_colors', methods=['POST'])
+@login_required
+def save_result_colors():
+    data = request.json or {}
+    config = data.get('config', {})
+    s = Setting.query.filter_by(chave=RESULT_COLORS_KEY).first()
+    if not s:
+        s = Setting(chave=RESULT_COLORS_KEY, valor=json.dumps(config))
+        db.session.add(s)
+    else:
+        s.valor = json.dumps(config)
     db.session.commit()
     return jsonify({"status": "ok"})
 

@@ -32,6 +32,12 @@ class Lancamento(db.Model):
     valor = db.Column(db.Float, default=0.0)
     __table_args__ = (db.UniqueConstraint('categoria_id', 'mes', 'ano', name='_cat_mes_ano_uc'),)
 
+class Setting(db.Model):
+    __tablename__ = 'settings'
+    id = db.Column(db.Integer, primary_key=True)
+    chave = db.Column(db.String(80), unique=True, nullable=False)
+    valor = db.Column(db.Text, nullable=True)
+
 class LayoutDFC(db.Model):
     __tablename__ = 'layout_dfc'
     id = db.Column(db.Integer, primary_key=True)

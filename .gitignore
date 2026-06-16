@@ -1,5 +1,7 @@
 manual.txt
 /__pycache__
+__pycache__/
+.claude/
 venv/
 env/
 .venv/
